@@ -63,4 +63,8 @@ const { error } = await supabase.from('quotation_items').upsert(dbRows);
     res.json({ success: true });
 });
 
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 app.listen(PORT, () => console.log(` السيرفر جاهز على منفذ ${PORT}`));
