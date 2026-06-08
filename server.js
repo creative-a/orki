@@ -19,7 +19,7 @@ app.get('/api/items', async (req, res) => {
     if (error) return res.status(500).json(error);
     
     // تحويل الأعمدة لتتوافق مع فرونت إند التطبيق
-    const formattedData = data.map(item => ({
+    const formattedData = (data || []).map(item => ({
         id: item.id, 
         category: item.category, 
         name: item.name, 
@@ -38,6 +38,11 @@ app.get('/api/items', async (req, res) => {
 // 2. synqr - مزامنة وحفظ البيانات
 app.post('/api/save', async (req, res) => {
     const items = req.body;
+    
+    // حماية إضافية تمنع انهيار السيرفر إذا لم تكن البيانات مصفوفة
+    if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "Expected an array of items" });
+    }
     
     // تحويل الأعمدة لتتوافق مع جدول SQL في Supabase
     const dbRows = items.map(item => ({
@@ -61,8 +66,8 @@ app.post('/api/save', async (req, res) => {
     res.json({ success: true });
 });
 
-// 3. التوجيه الشامل والآمن (تم دمج المسارين لمنع تعارض السيرفر عند التحديث)
-app.get('*', (req, res) => {
+// 3. التوجيه الشامل الحديث المتوافق مع Node v24 (حل مشكلة الـ PathError)
+app.get('(.*)', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
