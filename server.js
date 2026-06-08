@@ -66,8 +66,8 @@ app.post('/api/save', async (req, res) => {
     res.json({ success: true });
 });
 
-// 3. التوجيه الشامل الحديث المتوافق مع Node v24 (حل مشكلة الـ PathError)
-app.get('(.*)', (req, res) => {
+// 3. التوجيه الشامل الحديث المتوافق مع كافة نسخ Node و Express
+app.use((req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
