@@ -8,8 +8,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // SupabaseTok
-const SUPABASE_URL = 'https://gqqkrybgjpepxjhllbbl.supabase.co/rest/v1/';
-const SUPABASE_KEY = 'sb_publishable_nxzUw1jskT2DAxkkffukLA_YGRHgoB9';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 app.use(express.json());
