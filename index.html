@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orkida sources system</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background-color: #f4f7f6; color: #333; }
+        h2, h3 { color: #2c3e50; margin-bottom: 10px; }
+        .container { max-width: 1300px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
+        .section-box { background: #edf2f7; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+        .form-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; flex: 1; min-width: 130px; font-size: 14px; }
+        button { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .btn-add { background-color: #2ecc71; color: white; }
+        .btn-edit { background-color: #f39c12; color: white; }
+        .btn-archive { background-color: #e67e22; color: white; }
+        .btn-excel { background-color: #27ae60; color: white; }
+        .btn-view-archive { background-color: #34495e; color: white; }
+        .action-bar { display: flex; justify-content: space-between; margin-bottom: 15px; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .filter-group { display: flex; gap: 10px; align-items: center; flex: 1; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 13px; }
+        th { background-color: #34495e; color: white; }
+        .total-row { font-weight: bold; background-color: #e1e8ed; }
+        .category-badge { background: #3498db; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; }
+        .sync-status { font-size: 12px; color: #7f8c8d; font-weight: normal; margin-right: 15px; }
+        .date-text { color: #7f8c8d; font-size: 11px; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📄 إدارة عرض سعر المواد <span class="sync-status" id="sync-text">🔄 جاري التحميل...</span></h2>
+    
+    <div class="section-box">
+        <h3>➕ إضافة / تعديل مادة:</h3>
+        <div class="form-group">
+            <input type="hidden" id="item-id">
+            <input type="hidden" id="item-date"> <select id="item-category">
+                <option value="" disabled selected>التصنيف الرئيسي...</option>
+                <option value="مواد بناء أساسية">مواد بناء أساسية</option>
+                <option value="أدوات صحية وسباكة">أدوات صحية وسباكة</option>
+                <option value="مواد كهربائية">مواد كهربائية</option>
+                <option value="تشطيبات ودهانات">تشطيبات ودهانات</option>
+            </select>
+            <input type="text" id="item-name" placeholder="اسم المادة">
+            <input type="text" id="item-details" placeholder="النوع / التفصيل">
+            <input type="text" id="item-source" placeholder="المصدر (المورد)">
+            <input type="text" id="item-phone" placeholder="رقم الهاتف">
+            <input type="number" id="item-qty" placeholder="الكمية" oninput="calculateRowTotal()">
+            <input type="text" id="item-unit" placeholder="الوحدة">
+            <input type="number" id="item-price" placeholder="سعر إفرادي" oninput="calculateRowTotal()">
+            <input type="text" id="item-total" placeholder="سعر إجمالي" disabled style="background: #e2e8f0; font-weight: bold;">
+            <button class="btn-add" id="btn-save" onclick="saveItem()">حفظ البيانات بالسحاب</button>
+        </div>
+    </div>
+
+    <div class="action-bar">
+        <div class="filter-group">
+            <input type="text" id="search-name" oninput="renderTable()" placeholder="ابحث باسم المادة أو المصدر...">
+            <select id="filter-category" onchange="renderTable()">
+                <option value="الكل">كل التصنيفات</option>
+                <option value="مواد بناء أساسية">مواد بناء أساسية</option>
+                <option value="أدوات صحية وسباكة">أدوات صحية وسباكة</option>
+                <option value="مواد كهربائية">مواد كهربائية</option>
+                <option value="تشطيبات ودهانات">تشطيبات ودهانات</option>
+            </select>
+        </div>
+        <div class="button-group">
+            <button class="btn-view-archive" id="btn-toggle-archive" onclick="toggleArchiveView()">📂 عرض الأرشيف</button>
+            <button class="btn-excel" onclick="exportToExcel()">📊 تخريج إلى إكسل</button>
+        </div>
+    </div>
+
+    <table id="materials-table">
+        <thead>
+            <tr>
+                <th>تاريخ الإدخال</th>
+                <th>التصنيف الرئيسي</th>
+                <th>اسم المادة</th>
+                <th>النوع / التفصيل</th>
+                <th>المصدر</th>
+                <th>رقم الهاتف</th>
+                <th>الكمية</th>
+                <th>الوحدة</th>
+                <th>سعر إفرادي</th>
+                <th>سعر إجمالي</th>
+                <th>العمليات</th>
+            </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+        <tfoot>
+            <tr class="total-row">
+                <td colspan="9" style="text-align: left;">💰 الإجمالي الكلي للمواد المعروضة:</td>
+                <td id="grand-total">0</td>
+                <td>---</td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+<script>
+    let items = [];
+    let currentView = "main";
+
+    // 🌐 1. استدعاء قاعدة البيانات من السيرفر فور فتح البرنامج
+    async function loadDataFromServer() {
+        try {
+            const response = await fetch('/api/items');
+            items = await response.json();
+            document.getElementById('sync-text').innerText = "🟢 متصل بقاعدة البيانات السحابية";
+            renderTable();
+        } catch (error) {
+            document.getElementById('sync-text').innerText = "🔴 خطأ في الاتصال بالسيرفر السحابي";
+        }
+    }
+
+    // 🌐 2. دالة إرسال ومزامنة البيانات مع السيرفر السحابي
+    async function sendDataToServer() {
+        try {
+            document.getElementById('sync-text').innerText = "⏳ جاري الحفظ والتحديث بالسحاب...";
+            await fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(items)
+            });
+            document.getElementById('sync-text').innerText = `🟢 تم الحفظ والمزامنة السحابية تلقائياً: ${new Date().toLocaleTimeString('ar-EG')}`;
+        } catch (error) {
+            document.getElementById('sync-text').innerText = "🔴 فشل التحديث التلقائي بالسحاب";
+        }
+    }
+
+    // ⏱️ 3. الأتمتة: التحديث التلقائي الدوري كل 5 دقائق كنسخة احتياطية مستمرة
+    setInterval(sendDataToServer, 5 * 60 * 1000);
+
+    function calculateRowTotal() {
+        const qty = parseFloat(document.getElementById('item-qty').value) || 0;
+        const price = parseFloat(document.getElementById('item-price').value) || 0;
+        document.getElementById('item-total').value = (qty * price).toFixed(2);
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('table-body');
+        tbody.innerHTML = '';
+        const searchWord = document.getElementById('search-name').value.toLowerCase();
+        const selectedCategory = document.getElementById('filter-category').value;
+        let displayedTotal = 0;
+
+        let filteredItems = items.filter(item => currentView === "main" ? !item.isArchived : item.isArchived);
+
+        filteredItems = filteredItems.filter(item => {
+            const matchesSearch = item.name.toLowerCase().includes(searchWord) || item.source.toLowerCase().includes(searchWord);
+            const matchesCategory = (selectedCategory === "الكل" || item.category === selectedCategory);
+            return matchesSearch && matchesCategory;
+        });
+
+        filteredItems.forEach(item => {
+            const itemTotal = item.qty * item.price;
+            displayedTotal += itemTotal;
+            const archiveBtnText = currentView === "main" ? "أرشفة" : "إلغاء الأرشفة";
+
+            tbody.innerHTML += `
+                <tr>
+                    <td class="date-text">${item.createdAt}</td>
+                    <td><span class="category-badge">${item.category}</span></td>
+                    <td><b>${item.name}</b></td>
+                    <td>${item.details}</td>
+                    <td>${item.source}</td>
+                    <td>${item.phone}</td>
+                    <td>${item.qty}</td>
+                    <td>${item.unit}</td>
+                    <td>$${item.price.toFixed(2)}</td>
+                    <td>$${itemTotal.toFixed(2)}</td>
+                    <td>
+                        <button class="btn-edit" onclick="editItem(${item.id})">تعديل</button>
+                        <button class="btn-archive" onclick="toggleArchiveStatus(${item.id})">${archiveBtnText}</button>
+                    </td>
+                </tr>
+            `;
+        });
+        document.getElementById('grand-total').innerText = '$' + displayedTotal.toFixed(2);
+    }
+
+    function toggleArchiveView() {
+        if (currentView === "main") {
+            currentView = "archive";
+            document.getElementById('btn-toggle-archive').innerText = "📄 عرض الجدول الرئيسي";
+        } else {
+            currentView = "main";
+            document.getElementById('btn-toggle-archive').innerText = "📂 عرض الأرشيف";
+        }
+        renderTable();
+    }
+
+    function toggleArchiveStatus(id) {
+        const item = items.find(i => i.id == id);
+        if (item) {
+            item.isArchived = !item.isArchived;
+            sendDataToServer(); 
+            renderTable();
+        }
+    }
+
+    function saveItem() {
+        const id = document.getElementById('item-id').value;
+        const category = document.getElementById('item-category').value;
+        const name = document.getElementById('item-name').value;
+        const details = document.getElementById('item-details').value;
+        const source = document.getElementById('item-source').value;
+        const phone = document.getElementById('item-phone').value;
+        const qty = parseFloat(document.getElementById('item-qty').value);
+        const unit = document.getElementById('item-unit').value;
+        const price = parseFloat(document.getElementById('item-price').value);
+        const savedDate = document.getElementById('item-date').value;
+
+        if (!category || !name || isNaN(qty) || isNaN(price)) {
+            alert("الرجاء ملء الحقول الأساسية (التصنيف، اسم المادة، والكمية والسعر)");
+            return;
+        }
+
+        if (id) {
+            // حالة التعديل: نحتفظ بالتاريخ القديم للإدخال دون تغييره
+            const item = items.find(i => i.id == id);
+            Object.assign(item, { category, name, details, source, phone, qty, unit, price, createdAt: savedDate });
+        } else {
+            // حالة مادة جديدة: توليد التاريخ الحالي أوتوماتيكياً بصيغة مبسطة واضحة
+            const currentDate = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
+            items.push({ id: Date.now(), category, name, details, source, phone, qty, unit, price, isArchived: false, createdAt: currentDate });
+        }
+        
+        sendDataToServer(); 
+        clearForm();
+        renderTable();
+    }
+
+    function editItem(id) {
+        const item = items.find(i => i.id == id);
+        document.getElementById('item-id').value = item.id;
+        document.getElementById('item-date').value = item.createdAt; // حفظ التاريخ التاريخ القديم لمنع تغيره عند التحديث
+        document.getElementById('item-category').value = item.category;
+        document.getElementById('item-name').value = item.name;
+        document.getElementById('item-details').value = item.details;
+        document.getElementById('item-source').value = item.source;
+        document.getElementById('item-phone').value = item.phone;
+        document.getElementById('item-qty').value = item.qty;
+        document.getElementById('item-unit').value = item.unit;
+        document.getElementById('item-price').value = item.price;
+        calculateRowTotal();
+        document.getElementById('btn-save').innerText = "تحديث البيانات بالسحاب";
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function clearForm() {
+        document.getElementById('item-id').value = '';
+        document.getElementById('item-date').value = '';
+        document.getElementById('item-category').value = '';
+        document.getElementById('item-name').value = '';
+        document.getElementById('item-details').value = '';
+        document.getElementById('item-source').value = '';
+        document.getElementById('item-phone').value = '';
+        document.getElementById('item-qty').value = '';
+        document.getElementById('item-unit').value = '';
+        document.getElementById('item-price').value = '';
+        document.getElementById('item-total').value = '';
+        document.getElementById('btn-save').innerText = "حفظ البيانات بالسحاب";
+    }
+
+    function exportToExcel() {
+        const table = document.getElementById("materials-table");
+        const workbook = XLSX.utils.table_to_book(table, { sheet: "عرض السعر مع التاريخ" });
+        XLSX.writeFile(workbook, currentView === "main" ? "عرض_سعر_المواد_بالتاريخ.xlsx" : "أرشيف_المواد_بالتاريخ.xlsx");
+    }
+
+    loadDataFromServer();
+</script>
+
+</body>
+</html>
