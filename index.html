@@ -3,21 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orkida sources system</title>
+    <title>Orkida Management System</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 30px; background-color: #f4f7f6; color: #333; }
+        body { font-family: Arial, sans-serif; margin: 0; background-color: #f4f7f6; color: #333; }
         h2, h3 { color: #2c3e50; margin-bottom: 10px; }
-        .container { max-width: 1300px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
+        
+        /* شاشة تسجيل الدخول */
+        .login-wrapper { display: flex; justify-content: center; align-items: center; height: 100vh; background: #34495e; }
+        .login-box { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); width: 100%; max-width: 400px; text-align: center; }
+        .login-box h2 { margin-bottom: 25px; color: #2c3e50; }
+        .login-box input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 15px; text-align: center; }
+        .login-box button { width: 100%; padding: 12px; background: #2ecc71; border: none; color: white; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .login-box button:hover { background: #27ae60; }
+
+        /* النظام الرئيسي */
+        .main-system { display: none; }
+        
+        /* شريط التنقل العلوي */
+        .navbar { background-color: #2c3e50; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; color: white; }
+        .navbar-brand { font-size: 20px; font-weight: bold; }
+        .sector-tabs { display: flex; gap: 15px; }
+        .sector-btn { background: #34495e; color: #bdc3c7; border: none; padding: 10px 20px; font-size: 15px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: 0.3s; }
+        .sector-btn.active { background: #3498db; color: white; }
+        .logout-btn { background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+
+        .container { max-width: 1400px; margin: 30px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
         .section-box { background: #edf2f7; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
         .form-group { display: flex; gap: 10px; flex-wrap: wrap; }
         input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; flex: 1; min-width: 130px; font-size: 14px; }
-        button { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        
         .btn-add { background-color: #2ecc71; color: white; }
         .btn-edit { background-color: #f39c12; color: white; }
         .btn-archive { background-color: #e67e22; color: white; }
+        .btn-delete { background-color: #e74c3c; color: white; }
         .btn-excel { background-color: #27ae60; color: white; }
         .btn-view-archive { background-color: #34495e; color: white; }
+        
         .action-bar { display: flex; justify-content: space-between; margin-bottom: 15px; align-items: center; flex-wrap: wrap; gap: 10px; }
         .filter-group { display: flex; gap: 10px; align-items: center; flex: 1; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
@@ -25,141 +48,289 @@
         th { background-color: #34495e; color: white; }
         .total-row { font-weight: bold; background-color: #e1e8ed; }
         .category-badge { background: #3498db; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; }
-        .sync-status { font-size: 12px; color: #7f8c8d; font-weight: normal; margin-right: 15px; }
+        .currency-badge { background: #9b59b6; color: white; padding: 3px 6px; border-radius: 4px; font-size: 11px; }
+        .sync-status { font-size: 13px; color: #edf2f7; font-weight: normal; background: #27ae60; padding: 5px 10px; border-radius: 4px; }
+        .sync-status.error { background: #e74c3c; }
         .date-text { color: #7f8c8d; font-size: 11px; font-style: italic; }
+        .actions-cell { display: flex; gap: 5px; justify-content: center; }
+        
+        /* قطاعات الصفحات */
+        .sector-section { display: none; }
+        .sector-section.active { display: block; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>📄 إدارة عرض سعر المواد <span class="sync-status" id="sync-text">🔄 جاري التحميل...</span></h2>
+<div class="login-wrapper" id="login-screen">
+    <div class="login-box">
+        <h2>Orkida Login System</h2>
+        <input type="text" id="login-username" placeholder="اسم المستخدم">
+        <input type="password" id="login-password" placeholder="كلمة المرور">
+        <button onclick="handleLogin()">تسجيل الدخول</button>
+    </div>
+</div>
+
+<div class="main-system" id="main-system-screen">
     
-    <div class="section-box">
-        <h3>➕ إضافة / تعديل مادة:</h3>
-        <div class="form-group">
-            <input type="hidden" id="item-id">
-            <input type="hidden" id="item-date"> <select id="item-category">
-                <option value="" disabled selected>التصنيف الرئيسي...</option>
-                <option value="مواد بناء أساسية">مواد بناء أساسية</option>
-                <option value="أدوات صحية وسباكة">أدوات صحية وسباكة</option>
-                <option value="مواد كهربائية">مواد كهربائية</option>
-                <option value="تشطيبات ودهانات">تشطيبات ودهانات</option>
-            </select>
-            <input type="text" id="item-name" placeholder="اسم المادة">
-            <input type="text" id="item-details" placeholder="النوع / التفصيل">
-            <input type="text" id="item-source" placeholder="المصدر (المورد)">
-            <input type="text" id="item-phone" placeholder="رقم الهاتف">
-            <input type="number" id="item-qty" placeholder="الكمية" oninput="calculateRowTotal()">
-            <input type="text" id="item-unit" placeholder="الوحدة">
-            <input type="number" id="item-price" placeholder="سعر إفرادي" oninput="calculateRowTotal()">
-            <input type="text" id="item-total" placeholder="سعر إجمالي" disabled style="background: #e2e8f0; font-weight: bold;">
-            <button class="btn-add" id="btn-save" onclick="saveItem()">حفظ البيانات بالسحاب</button>
+    <div class="navbar">
+        <div class="navbar-brand">Orkida System Workspace</div>
+        <div class="sector-tabs">
+            <button class="sector-btn active" id="tab-materials" onclick="switchSector('materials')">🗂️ عروض المواد</button>
+            <button class="sector-btn" id="tab-projects" onclick="switchSector('projects')">🏗️ طلب مواد المشاريع</button>
+        </div>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <span class="sync-status" id="sync-text">🔄 Loading...</span>
+            <button class="logout-btn" onclick="handleLogout()">تسجيل خروج</button>
         </div>
     </div>
 
-    <div class="action-bar">
-        <div class="filter-group">
-            <input type="text" id="search-name" oninput="renderTable()" placeholder="ابحث باسم المادة أو المصدر...">
-            <select id="filter-category" onchange="renderTable()">
-                <option value="الكل">كل التصنيفات</option>
-                <option value="مواد بناء أساسية">مواد بناء أساسية</option>
-                <option value="أدوات صحية وسباكة">أدوات صحية وسباكة</option>
-                <option value="مواد كهربائية">مواد كهربائية</option>
-                <option value="تشطيبات ودهانات">تشطيبات ودهانات</option>
-            </select>
-        </div>
-        <div class="button-group">
-            <button class="btn-view-archive" id="btn-toggle-archive" onclick="toggleArchiveView()">📂 عرض الأرشيف</button>
-            <button class="btn-excel" onclick="exportToExcel()">📊 تخريج إلى إكسل</button>
-        </div>
-    </div>
+    <div class="container">
+        
+        <div id="sector-materials" class="sector-section active">
+            <h2>📄 إدارة عرض سعر المواد</h2>
+            <div class="section-box">
+                <h3>➕ إضافة / تعديل مادة:</h3>
+                <div class="form-group">
+                    <input type="hidden" id="item-id">
+                    <input type="hidden" id="item-date"> 
+                    <select id="item-category">
+                        <option value="" disabled selected>التصنيف الرئيسي...</option>
+                        <option value="مواد بناء أساسية">مواد بناء أساسية</option>
+                        <option value="أدوات صحية وسباكة">أدوات صحية وسباكة</option>
+                        <option value="مواد كهربائية">مواد كهربائية</option>
+                        <option value="تشطيبات ودهانات">تشطيبات ودهانات</option>
+                    </select>
+                    <input type="text" id="item-name" placeholder="اسم المادة">
+                    <input type="text" id="item-details" placeholder="النوع / التفصيل">
+                    <input type="text" id="item-source" placeholder="المصدر (المورد)">
+                    <input type="text" id="item-phone" placeholder="رقم الهاتف">
+                    <input type="number" id="item-qty" placeholder="الكمية" oninput="calculateMaterialRowTotal()">
+                    <input type="text" id="item-unit" placeholder="الوحدة">
+                    <input type="number" id="item-price" placeholder="سعر إفرادي" oninput="calculateMaterialRowTotal()">
+                    <select id="item-currency">
+                        <option value="دولار" selected>دولار</option>
+                        <option value="عملة سورية">عملة سورية</option>
+                    </select>
+                    <input type="text" id="item-total" placeholder="سعر إجمالي" disabled style="background: #e2e8f0; font-weight: bold;">
+                    <button class="btn-add" id="btn-material-save" onclick="saveMaterialItem()">حفظ البيانات بالسحاب</button>
+                </div>
+            </div>
 
-    <table id="materials-table">
-        <thead>
-            <tr>
-                <th>تاريخ الإدخال</th>
-                <th>التصنيف الرئيسي</th>
-                <th>اسم المادة</th>
-                <th>النوع / التفصيل</th>
-                <th>المصدر</th>
-                <th>رقم الهاتف</th>
-                <th>الكمية</th>
-                <th>الوحدة</th>
-                <th>سعر إفرادي</th>
-                <th>سعر إجمالي</th>
-                <th>العمليات</th>
-            </tr>
-        </thead>
-        <tbody id="table-body"></tbody>
-        <tfoot>
-            <tr class="total-row">
-                <td colspan="9" style="text-align: left;">💰 الإجمالي الكلي للمواد المعروضة:</td>
-                <td id="grand-total">0</td>
-                <td>---</td>
-            </tr>
-        </tfoot>
-    </table>
+            <div class="action-bar">
+                <div class="filter-group">
+                    <input type="text" id="search-material" oninput="renderMaterialsTable()" placeholder="ابحث باسم المادة أو المصدر...">
+                    <select id="filter-material-category" onchange="renderMaterialsTable()">
+                        <option value="الكل">كل التصنيفات</option>
+                        <option value="مواد بناء أساسية">مواد بناء أساسية</option>
+                        <option value="أدوات صحية وسباكة">أدوات صحية وسباكة</option>
+                        <option value="مواد كهربائية">مواد كهربائية</option>
+                        <option value="تشطيبات ودهانات">تشطيبات ودهانات</option>
+                    </select>
+                </div>
+                <div>
+                    <button class="btn-view-archive" id="btn-material-archive-toggle" onclick="toggleMaterialArchiveView()">📂 عرض الأرشيف</button>
+                    <button class="btn-excel" onclick="exportMaterialsToExcel()">📊 تخريج إلى إكسل</button>
+                </div>
+            </div>
+
+            <table id="materials-table">
+                <thead>
+                    <tr>
+                        <th>تاريخ الإدخال</th>
+                        <th>التصنيف الرئيسي</th>
+                        <th>اسم المادة</th>
+                        <th>النوع / التفصيل</th>
+                        <th>المصدر</th>
+                        <th>رقم الهاتف</th>
+                        <th>الكمية</th>
+                        <th>الوحدة</th>
+                        <th>سعر إفرادي</th>
+                        <th>العملة</th>
+                        <th>سعر إجمالي</th>
+                        <th>العمليات المتاحة</th>
+                    </tr>
+                </thead>
+                <tbody id="materials-table-body"></tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td colspan="10" style="text-align: left;">💰 الإجمالي الكلي للمواد المعروضة:</td>
+                        <td id="materials-grand-total">0</td>
+                        <td>---</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div id="sector-projects" class="sector-section">
+            <h2>🏗️ إدارة طلبات مواد المشاريع</h2>
+            <div class="section-box">
+                <h3>➕ إضافة / تعديل طلب مشروع:</h3>
+                <div class="form-group">
+                    <input type="hidden" id="project-id">
+                    <input type="hidden" id="project-date">
+                    <input type="text" id="project-name" placeholder="اسم المشروع">
+                    <input type="text" id="project-material" placeholder="المادة المطلوبة">
+                    <input type="text" id="project-details" placeholder="التفصيل / المواصفات">
+                    <input type="number" id="project-qty" placeholder="الكمية">
+                    <input type="date" id="project-duedate" placeholder="تاريخ الاستحقاق">
+                    <button class="btn-add" id="btn-project-save" onclick="saveProjectItem()">حفظ طلب المشروع بالسحاب</button>
+                </div>
+            </div>
+
+            <div class="action-bar">
+                <div class="filter-group">
+                    <input type="text" id="search-project" oninput="renderProjectsTable()" placeholder="ابحث باسم المشروع أو المادة...">
+                </div>
+                <div>
+                    <button class="btn-view-archive" id="btn-project-archive-toggle" onclick="toggleProjectArchiveView()">📂 عرض الأرشيف</button>
+                    <button class="btn-excel" onclick="exportProjectsToExcel()">📊 تخريج إلى إكسل</button>
+                </div>
+            </div>
+
+            <table id="projects-table">
+                <thead>
+                    <tr>
+                        <th>تاريخ الطلب</th>
+                        <th>المشروع</th>
+                        <th>المادة</th>
+                        <th>التفصيل</th>
+                        <th>الكمية</th>
+                        <th>تاريخ الاستحقاق</th>
+                        <th>العمليات المتاحة</th>
+                    </tr>
+                </thead>
+                <tbody id="projects-table-body"></tbody>
+            </table>
+        </div>
+
+    </div>
 </div>
 
 <script>
-    let items = [];
-    let currentView = "main";
-
-    // 🌐 1. استدعاء قاعدة البيانات من السيرفر فور فتح البرنامج
-    async function loadDataFromServer() {
-        try {
-            const response = await fetch('/api/items');
-            items = await response.json();
-            document.getElementById('sync-text').innerText = "🟢 متصل بقاعدة البيانات السحابية";
-            renderTable();
-        } catch (error) {
-            document.getElementById('sync-text').innerText = "🔴 خطأ في الاتصال بالسيرفر السحابي";
+    // بيانات تسجيل الدخول المؤقتة
+    function handleLogin() {
+        const user = document.getElementById('login-username').value;
+        const pass = document.getElementById('login-password').value;
+        if (user === 'waleedorkida' && pass === 'waleedorkida') {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('main-system-screen').style.display = 'block';
+            loadAllData();
+        } else {
+            alert('اسم المستخدم أو كلمة المرور غير صحيحة!');
         }
     }
 
-    // 🌐 2. دالة إرسال ومزامنة البيانات مع السيرفر السحابي
-    async function sendDataToServer() {
+    function handleLogout() {
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('main-system-screen').style.display = 'none';
+        document.getElementById('login-username').value = '';
+        document.getElementById('login-password').value = '';
+    }
+
+    // إدارة التبديل بين القطاعات
+    let currentSector = 'materials';
+    function switchSector(sector) {
+        currentSector = sector;
+        document.querySelectorAll('.sector-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.sector-section').forEach(s => s.classList.remove('active'));
+        
+        if(sector === 'materials') {
+            document.getElementById('tab-materials').classList.add('active');
+            document.getElementById('sector-materials').classList.add('active');
+        } else {
+            document.getElementById('tab-projects').classList.add('active');
+            document.getElementById('sector-projects').classList.add('active');
+        }
+    }
+
+    // كائنات البيانات الكلية
+    let materialsItems = [];
+    let projectsItems = [];
+    let materialView = "main";
+    let projectView = "main";
+
+    // جلب البيانات الكلي من السيرفر السحابي
+    async function loadAllData() {
+        setSyncStatus("⏳ Loading...", false);
         try {
-            document.getElementById('sync-text').innerText = "⏳ جاري الحفظ والتحديث بالسحاب...";
+            const matRes = await fetch('/api/items');
+            materialsItems = await matRes.json();
+            
+            const projRes = await fetch('/api/projects');
+            projectsItems = await projRes.json();
+            
+            setSyncStatus("🟢 Connected to Cloud Database", false);
+            renderMaterialsTable();
+            renderProjectsTable();
+        } catch (error) {
+            setSyncStatus("🔴 Cloud server connection error", true);
+        }
+    }
+
+    function setSyncStatus(text, isError) {
+        const el = document.getElementById('sync-text');
+        el.innerText = text;
+        if(isError) el.classList.add('error');
+        else el.classList.remove('error');
+    }
+
+    // ==========================================
+    // JS LOGIC FOR SECTOR 1: MATERIALS
+    // ==========================================
+    async function sendMaterialsToServer() {
+        try {
+            setSyncStatus("⏳ Syncing materials...", false);
             await fetch('/api/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(items)
+                body: JSON.stringify(materialsItems)
             });
-            document.getElementById('sync-text').innerText = `🟢 تم الحفظ والمزامنة السحابية تلقائياً: ${new Date().toLocaleTimeString('ar-EG')}`;
+            setSyncStatus(`🟢 Synced: ${new Date().toLocaleTimeString()}`, false);
         } catch (error) {
-            document.getElementById('sync-text').innerText = "🔴 فشل التحديث التلقائي بالسحاب";
+            setSyncStatus("🔴 Auto-sync failed", true);
         }
     }
 
-    // ⏱️ 3. الأتمتة: التحديث التلقائي الدوري كل 5 دقائق كنسخة احتياطية مستمرة
-    setInterval(sendDataToServer, 5 * 60 * 1000);
+    async function deleteMaterialFromServer(id) {
+        if (!confirm("Are you sure you want to delete this permanently from cloud?")) return;
+        try {
+            setSyncStatus("⏳ Deleting...", false);
+            const res = await fetch(`/api/delete/${id}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.success) {
+                materialsItems = materialsItems.filter(i => i.id != id);
+                setSyncStatus("🟢 Deleted successfully", false);
+                renderMaterialsTable();
+            }
+        } catch (error) {
+            setSyncStatus("🔴 Delete operation failed", true);
+        }
+    }
 
-    function calculateRowTotal() {
+    function calculateMaterialRowTotal() {
         const qty = parseFloat(document.getElementById('item-qty').value) || 0;
         const price = parseFloat(document.getElementById('item-price').value) || 0;
         document.getElementById('item-total').value = (qty * price).toFixed(2);
     }
 
-    function renderTable() {
-        const tbody = document.getElementById('table-body');
+    function renderMaterialsTable() {
+        const tbody = document.getElementById('materials-table-body');
         tbody.innerHTML = '';
-        const searchWord = document.getElementById('search-name').value.toLowerCase();
-        const selectedCategory = document.getElementById('filter-category').value;
+        const searchWord = document.getElementById('search-material').value.toLowerCase();
+        const selectedCategory = document.getElementById('filter-material-category').value;
         let displayedTotal = 0;
 
-        let filteredItems = items.filter(item => currentView === "main" ? !item.isArchived : item.isArchived);
-
-        filteredItems = filteredItems.filter(item => {
+        let filtered = materialsItems.filter(item => materialView === "main" ? !item.isArchived : item.isArchived);
+        filtered = filtered.filter(item => {
             const matchesSearch = item.name.toLowerCase().includes(searchWord) || item.source.toLowerCase().includes(searchWord);
             const matchesCategory = (selectedCategory === "الكل" || item.category === selectedCategory);
             return matchesSearch && matchesCategory;
         });
 
-        filteredItems.forEach(item => {
+        filtered.forEach(item => {
             const itemTotal = item.qty * item.price;
             displayedTotal += itemTotal;
-            const archiveBtnText = currentView === "main" ? "أرشفة" : "إلغاء الأرشفة";
+            const archiveBtnText = materialView === "main" ? "أرشفة" : "إلغاء";
 
             tbody.innerHTML += `
                 <tr>
@@ -171,39 +342,22 @@
                     <td>${item.phone}</td>
                     <td>${item.qty}</td>
                     <td>${item.unit}</td>
-                    <td>$${item.price.toFixed(2)}</td>
-                    <td>$${itemTotal.toFixed(2)}</td>
+                    <td>${item.price.toFixed(2)}</td>
+                    <td><span class="currency-badge">${item.currency || 'دولار'}</span></td>
+                    <td>${itemTotal.toFixed(2)}</td>
                     <td>
-                        <button class="btn-edit" onclick="editItem(${item.id})">تعديل</button>
-                        <button class="btn-archive" onclick="toggleArchiveStatus(${item.id})">${archiveBtnText}</button>
+                        <div class="actions-cell">
+                            <button class="btn-edit" onclick="editMaterialItem(${item.id})">تعديل</button>
+                            <button class="btn-archive" onclick="toggleMaterialArchiveStatus(${item.id})">${archiveBtnText}</button>
+                            <button class="btn-delete" onclick="deleteMaterialFromServer(${item.id})">حذف</button>
+                        </div>
                     </td>
-                </tr>
-            `;
+                </tr>`;
         });
-        document.getElementById('grand-total').innerText = '$' + displayedTotal.toFixed(2);
+        document.getElementById('materials-grand-total').innerText = displayedTotal.toFixed(2);
     }
 
-    function toggleArchiveView() {
-        if (currentView === "main") {
-            currentView = "archive";
-            document.getElementById('btn-toggle-archive').innerText = "📄 عرض الجدول الرئيسي";
-        } else {
-            currentView = "main";
-            document.getElementById('btn-toggle-archive').innerText = "📂 عرض الأرشيف";
-        }
-        renderTable();
-    }
-
-    function toggleArchiveStatus(id) {
-        const item = items.find(i => i.id == id);
-        if (item) {
-            item.isArchived = !item.isArchived;
-            sendDataToServer(); 
-            renderTable();
-        }
-    }
-
-    function saveItem() {
+    function saveMaterialItem() {
         const id = document.getElementById('item-id').value;
         const category = document.getElementById('item-category').value;
         const name = document.getElementById('item-name').value;
@@ -213,32 +367,30 @@
         const qty = parseFloat(document.getElementById('item-qty').value);
         const unit = document.getElementById('item-unit').value;
         const price = parseFloat(document.getElementById('item-price').value);
+        const currency = document.getElementById('item-currency').value;
         const savedDate = document.getElementById('item-date').value;
 
         if (!category || !name || isNaN(qty) || isNaN(price)) {
-            alert("الرجاء ملء الحقول الأساسية (التصنيف، اسم المادة، والكمية والسعر)");
+            alert("الرجاء ملء كافة الحقول الأساسية للمادة!");
             return;
         }
 
         if (id) {
-            // حالة التعديل: نحتفظ بالتاريخ القديم للإدخال دون تغييره
-            const item = items.find(i => i.id == id);
-            Object.assign(item, { category, name, details, source, phone, qty, unit, price, createdAt: savedDate });
+            const item = materialsItems.find(i => i.id == id);
+            Object.assign(item, { category, name, details, source, phone, qty, unit, price, currency, createdAt: savedDate });
         } else {
-            // حالة مادة جديدة: توليد التاريخ الحالي أوتوماتيكياً بصيغة مبسطة واضحة
             const currentDate = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
-            items.push({ id: Date.now(), category, name, details, source, phone, qty, unit, price, isArchived: false, createdAt: currentDate });
+            materialsItems.push({ id: Date.now(), category, name, details, source, phone, qty, unit, price, currency, isArchived: false, createdAt: currentDate });
         }
-        
-        sendDataToServer(); 
-        clearForm();
-        renderTable();
+        sendMaterialsToServer();
+        clearMaterialForm();
+        renderMaterialsTable();
     }
 
-    function editItem(id) {
-        const item = items.find(i => i.id == id);
+    function editMaterialItem(id) {
+        const item = materialsItems.find(i => i.id == id);
         document.getElementById('item-id').value = item.id;
-        document.getElementById('item-date').value = item.createdAt; // حفظ التاريخ التاريخ القديم لمنع تغيره عند التحديث
+        document.getElementById('item-date').value = item.createdAt; 
         document.getElementById('item-category').value = item.category;
         document.getElementById('item-name').value = item.name;
         document.getElementById('item-details').value = item.details;
@@ -247,14 +399,13 @@
         document.getElementById('item-qty').value = item.qty;
         document.getElementById('item-unit').value = item.unit;
         document.getElementById('item-price').value = item.price;
-        calculateRowTotal();
-        document.getElementById('btn-save').innerText = "تحديث البيانات بالسحاب";
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        document.getElementById('item-currency').value = item.currency || 'دولار';
+        calculateMaterialRowTotal();
+        document.getElementById('btn-material-save').innerText = "تحديث البيانات بالسحاب";
     }
 
-    function clearForm() {
+    function clearMaterialForm() {
         document.getElementById('item-id').value = '';
-        document.getElementById('item-date').value = '';
         document.getElementById('item-category').value = '';
         document.getElementById('item-name').value = '';
         document.getElementById('item-details').value = '';
@@ -264,16 +415,157 @@
         document.getElementById('item-unit').value = '';
         document.getElementById('item-price').value = '';
         document.getElementById('item-total').value = '';
-        document.getElementById('btn-save').innerText = "حفظ البيانات بالسحاب";
+        document.getElementById('btn-material-save').innerText = "حفظ البيانات بالسحاب";
     }
 
-    function exportToExcel() {
-        const table = document.getElementById("materials-table");
-        const workbook = XLSX.utils.table_to_book(table, { sheet: "عرض السعر مع التاريخ" });
-        XLSX.writeFile(workbook, currentView === "main" ? "عرض_سعر_المواد_بالتاريخ.xlsx" : "أرشيف_المواد_بالتاريخ.xlsx");
+    function toggleMaterialArchiveView() {
+        materialView = (materialView === "main") ? "archive" : "main";
+        document.getElementById('btn-material-archive-toggle').innerText = materialView === "main" ? "📂 عرض الأرشيف" : "📄 الجدول الرئيسي";
+        renderMaterialsTable();
     }
 
-    loadDataFromServer();
+    function toggleMaterialArchiveStatus(id) {
+        const item = materialsItems.find(i => i.id == id);
+        if (item) { item.isArchived = !item.isArchived; sendMaterialsToServer(); renderMaterialsTable(); }
+    }
+
+    function exportMaterialsToExcel() {
+        XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("materials-table")), "Materials_Report.xlsx");
+    }
+
+
+    // ==========================================
+    // JS LOGIC FOR SECTOR 2: PROJECTS (المشاريع)
+    // ==========================================
+    async function sendProjectsToServer() {
+        try {
+            setSyncStatus("⏳ Syncing projects...", false);
+            await fetch('/api/projects/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(projectsItems)
+            });
+            setSyncStatus(`🟢 Synced: ${new Date().toLocaleTimeString()}`, false);
+        } catch (error) {
+            setSyncStatus("🔴 Auto-sync failed", true);
+        }
+    }
+
+    async function deleteProjectFromServer(id) {
+        if (!confirm("Are you sure you want to delete this request permanently?")) return;
+        try {
+            setSyncStatus("⏳ Deleting...", false);
+            const res = await fetch(`/api/projects/delete/${id}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.success) {
+                projectsItems = projectsItems.filter(i => i.id != id);
+                setSyncStatus("🟢 Deleted successfully", false);
+                renderProjectsTable();
+            }
+        } catch (error) {
+            setSyncStatus("🔴 Delete operation failed", true);
+        }
+    }
+
+    function renderProjectsTable() {
+        const tbody = document.getElementById('projects-table-body');
+        tbody.innerHTML = '';
+        const searchWord = document.getElementById('search-project').value.toLowerCase();
+
+        let filtered = projectsItems.filter(item => projectView === "main" ? !item.isArchived : item.isArchived);
+        filtered = filtered.filter(item => item.project.toLowerCase().includes(searchWord) || item.material.toLowerCase().includes(searchWord));
+
+        filtered.forEach(item => {
+            const archiveBtnText = projectView === "main" ? "أرشفة" : "إلغاء";
+            tbody.innerHTML += `
+                <tr>
+                    <td class="date-text">${item.createdAt}</td>
+                    <td><b>${item.project}</b></td>
+                    <td>${item.material}</td>
+                    <td>${item.details}</td>
+                    <td>${item.qty}</td>
+                    <td><span style="color:#e74c3c; font-weight:bold;">${item.dueDate || '---'}</span></td>
+                    <td>
+                        <div class="actions-cell">
+                            <button class="btn-edit" onclick="editProjectItem(${item.id})">تعديل</button>
+                            <button class="btn-archive" onclick="toggleProjectArchiveStatus(${item.id})">${archiveBtnText}</button>
+                            <button class="btn-delete" onclick="deleteProjectFromServer(${item.id})">حذف</button>
+                        </div>
+                    </td>
+                </tr>`;
+        });
+    }
+
+    function saveProjectItem() {
+        const id = document.getElementById('project-id').value;
+        const project = document.getElementById('project-name').value;
+        const material = document.getElementById('project-material').value;
+        const details = document.getElementById('project-details').value;
+        const qty = parseFloat(document.getElementById('project-qty').value);
+        const dueDate = document.getElementById('project-duedate').value;
+        const savedDate = document.getElementById('project-date').value;
+
+        if (!project || !material || isNaN(qty)) {
+            alert("الرجاء إدخال اسم المشروع، المادة، والكمية!");
+            return;
+        }
+
+        if (id) {
+            const item = projectsItems.find(i => i.id == id);
+            Object.assign(item, { project, material, details, qty, dueDate, createdAt: savedDate });
+        } else {
+            const currentDate = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
+            projectsItems.push({ id: Date.now(), project, material, details, qty, dueDate, isArchived: false, createdAt: currentDate });
+        }
+        sendProjectsToServer();
+        clearProjectForm();
+        renderProjectsTable();
+    }
+
+    function editProjectItem(id) {
+        const item = projectsItems.find(i => i.id == id);
+        document.getElementById('project-id').value = item.id;
+        document.getElementById('project-date').value = item.createdAt;
+        document.getElementById('project-name').value = item.project;
+        document.getElementById('project-material').value = item.material;
+        document.getElementById('project-details').value = item.details;
+        document.getElementById('project-qty').value = item.qty;
+        document.getElementById('project-duedate').value = item.dueDate;
+        document.getElementById('btn-project-save').innerText = "تحديث طلب المشروع بالسحاب";
+    }
+
+    function clearProjectForm() {
+        document.getElementById('project-id').value = '';
+        document.getElementById('project-name').value = '';
+        document.getElementById('project-material').value = '';
+        document.getElementById('project-details').value = '';
+        document.getElementById('project-qty').value = '';
+        document.getElementById('project-duedate').value = '';
+        document.getElementById('btn-project-save').innerText = "حفظ طلب المشروع بالسحاب";
+    }
+
+    function toggleProjectArchiveView() {
+        projectView = (projectView === "main") ? "archive" : "main";
+        document.getElementById('btn-project-archive-toggle').innerText = projectView === "main" ? "📂 عرض الأرشيف" : "📄 الجدول الرئيسي";
+        renderProjectsTable();
+    }
+
+    function toggleProjectArchiveStatus(id) {
+        const item = projectsItems.find(i => i.id == id);
+        if (item) { item.isArchived = !item.isArchived; sendProjectsToServer(); renderProjectsTable(); }
+    }
+
+    function exportProjectsToExcel() {
+        XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("projects-table")), "Projects_Requests_Report.xlsx");
+    }
+
+    // مزامنة دورية آلية كل 5 دقائق
+    setInterval(() => {
+        if(document.getElementById('main-system-screen').style.display === 'block') {
+            sendMaterialsToServer();
+            sendProjectsToServer();
+        }
+    }, 5 * 60 * 1000);
 </script>
 
 </body>
