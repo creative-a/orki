@@ -13,18 +13,23 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // ==========================================
-// SECTOR 1: MATERIALS APIS
+// SECTOR 1: MATERIALS APIS (عروض المواد)
 // ==========================================
 app.get('/api/items', async (req, res) => {
-    const { data, error } = await supabase.from('quotation_items').select('*');
-    if (error) return res.status(500).json(error);
+    // جلب البيانات مرتبة بحسب المعرف تنازلياً لضمان ظهور الأحدث أولاً
+    const { data, error } = await supabase.from('quotation_items').select('*').order('id', { ascending: false });
+    if (error) {
+        console.error("❌ خطأ جلب المواد:", error);
+        return res.status(500).json(error);
+    }
     res.json(data || []);
 });
 
 app.post('/api/save-single', async (req, res) => {
     const item = req.body;
-    console.log("📥 المواد الواردة للـ Supabase:", item);
+    console.log("📥 البيانات المستلمة للمواد:", item);
 
+    // بناء كائن نقي يطابق أعمدة الـ SQL التي أرسلتها تماماً
     const dbRow = {
         id: Number(item.id),
         category: item.category,
@@ -35,12 +40,18 @@ app.post('/api/save-single', async (req, res) => {
         qty: Number(item.qty),
         unit: item.unit,
         price: Number(item.price),
+        currency: item.currency || 'دولار',
         is_archived: item.is_archived === true
     };
 
+    // إذا كان هناك تاريخ مخزن مسبقاً نرسله، وإلا ستتولى Supabase توليده تلقائياً
+    if (item.created_at) {
+        dbRow.created_at = item.created_at;
+    }
+
     const { error } = await supabase.from('quotation_items').upsert(dbRow);
     if (error) {
-        console.error("❌ خطأ Supabase في المواد:", error);
+        console.error("❌ خطأ فادح من Supabase في جدول المواد:", error);
         return res.status(500).json(error);
     }
     res.json({ success: true });
@@ -54,31 +65,34 @@ app.delete('/api/delete/:id', async (req, res) => {
 });
 
 // ==========================================
-// SECTOR 2: PROJECTS APIS
+// SECTOR 2: PROJECTS APIS (طلبات المشاريع)
 // ==========================================
 app.get('/api/projects', async (req, res) => {
-    const { data, error } = await supabase.from('project_requests').select('*');
+    const { data, error } = await supabase.from('project_requests').select('*').order('id', { ascending: false });
     if (error) return res.status(500).json(error);
     res.json(data || []);
 });
 
 app.post('/api/projects/save-single', async (req, res) => {
     const item = req.body;
-    console.log("📥 المشاريع الواردة للـ Supabase:", item);
-
+    
     const dbRow = {
         id: Number(item.id),
         project: item.project,
         material: item.material,
         details: item.details,
         qty: Number(item.qty),
-        due_date: item.due_date ? item.due_date : null,
+        due_date: item.due_date || null,
         is_archived: item.is_archived === true
     };
 
+    if (item.created_at) {
+        dbRow.created_at = item.created_at;
+    }
+
     const { error } = await supabase.from('project_requests').upsert(dbRow);
     if (error) {
-        console.error("❌ خطأ Supabase في المشاريع:", error);
+        console.error("❌ خطأ في قطاع المشاريع:", error);
         return res.status(500).json(error);
     }
     res.json({ success: true });
