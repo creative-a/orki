@@ -9,7 +9,6 @@
         body { font-family: Arial, sans-serif; margin: 0; background-color: #f4f7f6; color: #333; }
         h2, h3 { color: #2c3e50; margin-bottom: 10px; }
         
-        /* شاشة تسجيل الدخول */
         .login-wrapper { display: flex; justify-content: center; align-items: center; height: 100vh; background: #34495e; }
         .login-box { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); width: 100%; max-width: 400px; text-align: center; }
         .login-box h2 { margin-bottom: 25px; color: #2c3e50; }
@@ -17,10 +16,8 @@
         .login-box button { width: 100%; padding: 12px; background: #2ecc71; border: none; color: white; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
         .login-box button:hover { background: #27ae60; }
 
-        /* النظام الرئيسي */
         .main-system { display: none; }
         
-        /* شريط التنقل العلوي */
         .navbar { background-color: #2c3e50; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; color: white; }
         .navbar-brand { font-size: 20px; font-weight: bold; }
         .sector-tabs { display: flex; gap: 15px; }
@@ -54,7 +51,6 @@
         .date-text { color: #7f8c8d; font-size: 11px; font-style: italic; }
         .actions-cell { display: flex; gap: 5px; justify-content: center; }
         
-        /* قطاعات الصفحات */
         .sector-section { display: none; }
         .sector-section.active { display: block; }
     </style>
@@ -86,6 +82,7 @@
 
     <div class="container">
         
+        <!-- SECTOR 1: MATERIALS -->
         <div id="sector-materials" class="sector-section active">
             <h2>📄 إدارة عرض سعر المواد</h2>
             <div class="section-box">
@@ -145,7 +142,7 @@
                         <th>الكمية</th>
                         <th>الوحدة</th>
                         <th>سعر إفرادي</th>
-                        <th>العملة</th>
+                        <th>العملية</th>
                         <th>سعر إجمالي</th>
                         <th>العمليات المتاحة</th>
                     </tr>
@@ -161,6 +158,7 @@
             </table>
         </div>
 
+        <!-- SECTOR 2: PROJECTS -->
         <div id="sector-projects" class="sector-section">
             <h2>🏗️ إدارة طلبات مواد المشاريع</h2>
             <div class="section-box">
@@ -207,7 +205,6 @@
 </div>
 
 <script>
-    // بيانات تسجيل الدخول المؤقتة
     function handleLogin() {
         const user = document.getElementById('login-username').value;
         const pass = document.getElementById('login-password').value;
@@ -227,7 +224,6 @@
         document.getElementById('login-password').value = '';
     }
 
-    // إدارة التبديل بين القطاعات
     let currentSector = 'materials';
     function switchSector(sector) {
         currentSector = sector;
@@ -243,13 +239,11 @@
         }
     }
 
-    // كائنات البيانات الكلية
     let materialsItems = [];
     let projectsItems = [];
     let materialView = "main";
     let projectView = "main";
 
-    // جلب البيانات الكلي من السيرفر السحابي
     async function loadAllData() {
         setSyncStatus("⏳ Loading...", false);
         try {
@@ -275,17 +269,20 @@
     }
 
     // ==========================================
-    // JS LOGIC FOR SECTOR 1: MATERIALS
+    // SECTOR 1: MATERIALS LOGIC
     // ==========================================
-    async function sendMaterialsToServer() {
+    async function saveMaterialToServer(item) {
         try {
-            setSyncStatus("⏳ Syncing materials...", false);
-            await fetch('/api/save', {
+            setSyncStatus("⏳ Saving material to cloud...", false);
+            const res = await fetch('/api/save-single', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(materialsItems)
+                body: JSON.stringify(item)
             });
-            setSyncStatus(`🟢 Synced: ${new Date().toLocaleTimeString()}`, false);
+            if(res.ok) {
+                setSyncStatus(`🟢 Synced successfully: ${new Date().toLocaleTimeString()}`, false);
+                loadAllData();
+            }
         } catch (error) {
             setSyncStatus("🔴 Auto-sync failed", true);
         }
@@ -296,10 +293,9 @@
         try {
             setSyncStatus("⏳ Deleting...", false);
             const res = await fetch(`/api/delete/${id}`, { method: 'DELETE' });
-            const result = await res.json();
-            if (result.success) {
-                materialsItems = materialsItems.filter(i => i.id != id);
+            if (res.ok) {
                 setSyncStatus("🟢 Deleted successfully", false);
+                materialsItems = materialsItems.filter(i => i.id != id);
                 renderMaterialsTable();
             }
         } catch (error) {
@@ -375,16 +371,16 @@
             return;
         }
 
+        let targetItem;
         if (id) {
-            const item = materialsItems.find(i => i.id == id);
-            Object.assign(item, { category, name, details, source, phone, qty, unit, price, currency, createdAt: savedDate });
+            targetItem = { id: Number(id), category, name, details, source, phone, qty, unit, price, currency, isArchived: materialView === "archive", createdAt: savedDate };
         } else {
             const currentDate = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
-            materialsItems.push({ id: Date.now(), category, name, details, source, phone, qty, unit, price, currency, isArchived: false, createdAt: currentDate });
+            targetItem = { id: Date.now(), category, name, details, source, phone, qty, unit, price, currency, isArchived: false, createdAt: currentDate };
         }
-        sendMaterialsToServer();
+        
+        saveMaterialToServer(targetItem);
         clearMaterialForm();
-        renderMaterialsTable();
     }
 
     function editMaterialItem(id) {
@@ -426,26 +422,31 @@
 
     function toggleMaterialArchiveStatus(id) {
         const item = materialsItems.find(i => i.id == id);
-        if (item) { item.isArchived = !item.isArchived; sendMaterialsToServer(); renderMaterialsTable(); }
+        if (item) {
+            item.isArchived = !item.isArchived;
+            saveMaterialToServer(item);
+        }
     }
 
     function exportMaterialsToExcel() {
         XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("materials-table")), "Materials_Report.xlsx");
     }
 
-
     // ==========================================
-    // JS LOGIC FOR SECTOR 2: PROJECTS (المشاريع)
+    // SECTOR 2: PROJECTS LOGIC
     // ==========================================
-    async function sendProjectsToServer() {
+    async function saveProjectToServer(item) {
         try {
-            setSyncStatus("⏳ Syncing projects...", false);
-            await fetch('/api/projects/save', {
+            setSyncStatus("⏳ Saving project request...", false);
+            const res = await fetch('/api/projects/save-single', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(projectsItems)
+                body: JSON.stringify(item)
             });
-            setSyncStatus(`🟢 Synced: ${new Date().toLocaleTimeString()}`, false);
+            if(res.ok) {
+                setSyncStatus(`🟢 Synced successfully: ${new Date().toLocaleTimeString()}`, false);
+                loadAllData();
+            }
         } catch (error) {
             setSyncStatus("🔴 Auto-sync failed", true);
         }
@@ -456,10 +457,9 @@
         try {
             setSyncStatus("⏳ Deleting...", false);
             const res = await fetch(`/api/projects/delete/${id}`, { method: 'DELETE' });
-            const result = await res.json();
-            if (result.success) {
-                projectsItems = projectsItems.filter(i => i.id != id);
+            if (res.ok) {
                 setSyncStatus("🟢 Deleted successfully", false);
+                projectsItems = projectsItems.filter(i => i.id != id);
                 renderProjectsTable();
             }
         } catch (error) {
@@ -510,16 +510,16 @@
             return;
         }
 
+        let targetItem;
         if (id) {
-            const item = projectsItems.find(i => i.id == id);
-            Object.assign(item, { project, material, details, qty, dueDate, createdAt: savedDate });
+            targetItem = { id: Number(id), project, material, details, qty, dueDate, isArchived: projectView === "archive", createdAt: savedDate };
         } else {
             const currentDate = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
-            projectsItems.push({ id: Date.now(), project, material, details, qty, dueDate, isArchived: false, createdAt: currentDate });
+            targetItem = { id: Date.now(), project, material, details, qty, dueDate, isArchived: false, createdAt: currentDate };
         }
-        sendProjectsToServer();
+        
+        saveProjectToServer(targetItem);
         clearProjectForm();
-        renderProjectsTable();
     }
 
     function editProjectItem(id) {
@@ -552,20 +552,15 @@
 
     function toggleProjectArchiveStatus(id) {
         const item = projectsItems.find(i => i.id == id);
-        if (item) { item.isArchived = !item.isArchived; sendProjectsToServer(); renderProjectsTable(); }
+        if (item) {
+            item.isArchived = !item.isArchived;
+            saveProjectToServer(item);
+        }
     }
 
     function exportProjectsToExcel() {
         XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("projects-table")), "Projects_Requests_Report.xlsx");
     }
-
-    // مزامنة دورية آلية كل 5 دقائق
-    setInterval(() => {
-        if(document.getElementById('main-system-screen').style.display === 'block') {
-            sendMaterialsToServer();
-            sendProjectsToServer();
-        }
-    }, 5 * 60 * 1000);
 </script>
 
 </body>
