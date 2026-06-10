@@ -13,71 +13,36 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // ==========================================
-// SECTOR 1: MATERIALS APIS (عروض المواد)
+// SECTOR 1: MATERIALS APIS
 // ==========================================
-
 app.get('/api/items', async (req, res) => {
     const { data, error } = await supabase.from('quotation_items').select('*');
-    if (error) {
-        console.error("❌ خطأ أثناء جلب المواد:", error);
-        return res.status(500).json(error);
-    }
-    
-    const formattedData = (data || []).map(item => ({
-        id: item.id, 
-        category: item.category, 
-        name: item.name, 
-        details: item.details,
-        source: item.source, 
-        phone: item.phone, 
-        qty: item.qty, 
-        unit: item.unit,
-        price: item.price, 
-        currency: item.currency || 'دولار', // وضع قيمة افتراضية في الواجهة حتى لو لم تكن بالداتابيز
-        isArchived: item.is_archived || false,
-        createdAt: item.created_at || '---' 
-    }));
-    res.json(formattedData);
+    if (error) return res.status(500).json(error);
+    res.json(data || []);
 });
-
 
 app.post('/api/save-single', async (req, res) => {
     const item = req.body;
-    console.log("📥 البيانات القادمة من المتصفح للمواد:", item);
+    console.log("📥 المواد الواردة للـ Supabase:", item);
 
-    // بناء كائن يحتوي فقط على الأعمدة الأساسية التي لا تسبب أي تعارض
     const dbRow = {
-        id: Number(item.id), // التأكد من أنه رقم صريح bigint
-        category: item.category, 
-        name: item.name, 
+        id: Number(item.id),
+        category: item.category,
+        name: item.name,
         details: item.details,
-        source: item.source, 
-        phone: item.phone, 
-        qty: Number(item.qty), 
+        source: item.source,
+        phone: item.phone,
+        qty: Number(item.qty),
         unit: item.unit,
-        price: Number(item.price)
+        price: Number(item.price),
+        is_archived: item.is_archived === true
     };
 
-    // معالجة حقل الأرشيف ليتوافق مع المسميات المحتملة دون إجبار
-    if (item.isArchived !== undefined) {
-        dbRow.is_archived = item.isArchived;
-    }
-
-    // تنظيف كلي وصارم لأي حقول قد تسبب رفض من الـ Schema Cache
-    delete dbRow.currency;
-    delete dbRow.createdAt;
-    delete dbRow.created_at;
-
-    console.log("📦 الكائن النهائي الصافي المرسل إلى Supabase:", dbRow);
-
     const { error } = await supabase.from('quotation_items').upsert(dbRow);
-    
     if (error) {
-        console.error("❌❌ خطأ فادح من Supabase في جدول المواد:", error);
-        return res.status(500).json({ success: false, message: error.message, details: error });
+        console.error("❌ خطأ Supabase في المواد:", error);
+        return res.status(500).json(error);
     }
-    
-    console.log("🟢 مبروك! تم حفظ المادة بنجاح وتجاوز قيود الأعمدة!");
     res.json({ success: true });
 });
 
@@ -89,47 +54,31 @@ app.delete('/api/delete/:id', async (req, res) => {
 });
 
 // ==========================================
-// SECTOR 2: PROJECTS APIS (طلبات مواد المشاريع)
+// SECTOR 2: PROJECTS APIS
 // ==========================================
-
 app.get('/api/projects', async (req, res) => {
     const { data, error } = await supabase.from('project_requests').select('*');
     if (error) return res.status(500).json(error);
-    
-    const formattedData = (data || []).map(item => ({
-        id: item.id,
-        project: item.project,
-        material: item.material,
-        details: item.details,
-        qty: item.qty,
-        dueDate: item.due_date,
-        isArchived: item.is_archived || item.isArchived || false,
-        createdAt: item.created_at || item.createdAt || '---'
-    }));
-    res.json(formattedData);
+    res.json(data || []);
 });
 
 app.post('/api/projects/save-single', async (req, res) => {
     const item = req.body;
-    
+    console.log("📥 المشاريع الواردة للـ Supabase:", item);
+
     const dbRow = {
-        id: item.id,
+        id: Number(item.id),
         project: item.project,
         material: item.material,
         details: item.details,
-        qty: item.qty,
-        due_date: item.dueDate,
-        is_archived: item.isArchived,
-        isArchived: item.isArchived
+        qty: Number(item.qty),
+        due_date: item.due_date ? item.due_date : null,
+        is_archived: item.is_archived === true
     };
-
-    if (item.createdAt) {
-        dbRow.created_at = item.createdAt;
-    }
 
     const { error } = await supabase.from('project_requests').upsert(dbRow);
     if (error) {
-        console.error("❌ خطأ في قطاع المشاريع:", error);
+        console.error("❌ خطأ Supabase في المشاريع:", error);
         return res.status(500).json(error);
     }
     res.json({ success: true });
@@ -142,9 +91,6 @@ app.delete('/api/projects/delete/:id', async (req, res) => {
     res.json({ success: true });
 });
 
-// ==========================================
-// GLOBAL ROUTING
-// ==========================================
 app.use((req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
