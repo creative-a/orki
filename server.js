@@ -33,36 +33,42 @@ app.get('/api/items', async (req, res) => {
         qty: item.qty, 
         unit: item.unit,
         price: item.price, 
-        currency: item.currency || 'دولار', 
-        isArchived: item.is_archived || item.isArchived || false,
-        createdAt: item.created_at || item.createdAt || '---' 
+        currency: item.currency || 'دولار', // وضع قيمة افتراضية في الواجهة حتى لو لم تكن بالداتابيز
+        isArchived: item.is_archived || false,
+        createdAt: item.created_at || '---' 
     }));
     res.json(formattedData);
 });
+
 
 app.post('/api/save-single', async (req, res) => {
     const item = req.body;
     console.log("📥 البيانات القادمة من المتصفح للمواد:", item);
 
-    // بناء الكائن بالأسماء الحرفية الصحيحة والمطابقة لـ Supabase تماماً
+    // بناء كائن يحتوي فقط على الأعمدة الأساسية التي لا تسبب أي تعارض
     const dbRow = {
-        id: item.id, 
+        id: Number(item.id), // التأكد من أنه رقم صريح bigint
         category: item.category, 
         name: item.name, 
         details: item.details,
         source: item.source, 
         phone: item.phone, 
-        qty: item.qty, 
+        qty: Number(item.qty), 
         unit: item.unit,
-        price: item.price, 
-        currency: item.currency,
-        is_archived: item.isArchived
+        price: Number(item.price)
     };
 
-    // تأمين إرسال التاريخ إلى العمود الصحيح فقط وبصيغة متوافقة
-    if (item.createdAt && !item.createdAt.includes('✏️')) {
-        dbRow.created_at = item.createdAt; 
+    // معالجة حقل الأرشيف ليتوافق مع المسميات المحتملة دون إجبار
+    if (item.isArchived !== undefined) {
+        dbRow.is_archived = item.isArchived;
     }
+
+    // تنظيف كلي وصارم لأي حقول قد تسبب رفض من الـ Schema Cache
+    delete dbRow.currency;
+    delete dbRow.createdAt;
+    delete dbRow.created_at;
+
+    console.log("📦 الكائن النهائي الصافي المرسل إلى Supabase:", dbRow);
 
     const { error } = await supabase.from('quotation_items').upsert(dbRow);
     
@@ -71,10 +77,9 @@ app.post('/api/save-single', async (req, res) => {
         return res.status(500).json({ success: false, message: error.message, details: error });
     }
     
-    console.log("🟢 تم حفظ المادة بنجاح في Supabase!");
+    console.log("🟢 مبروك! تم حفظ المادة بنجاح وتجاوز قيود الأعمدة!");
     res.json({ success: true });
 });
-
 
 app.delete('/api/delete/:id', async (req, res) => {
     const { id } = req.params;
