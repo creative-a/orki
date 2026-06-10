@@ -35,7 +35,6 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 13px; }
         th { background-color: #34495e; color: white; }
-        .total-row { font-weight: bold; background-color: #e1e8ed; }
         .sync-status { font-size: 13px; color: white; background: #27ae60; padding: 5px 10px; border-radius: 4px; }
         .sync-status.error { background: #e74c3c; }
         .sector-section { display: none; }
@@ -67,6 +66,7 @@
     </div>
 
     <div class="container">
+        <!-- SECTOR 1: MATERIALS -->
         <div id="sector-materials" class="sector-section active">
             <h2>📄 إدارة عرض سعر المواد</h2>
             <div class="section-box">
@@ -133,16 +133,10 @@
                     </tr>
                 </thead>
                 <tbody id="materials-table-body"></tbody>
-                <tfoot>
-                    <tr class="total-row">
-                        <td colspan="9" style="text-align: left;">💰 الإجمالي الكلي للمواد المعروضة:</td>
-                        <td id="materials-grand-total">0</td>
-                        <td colspan="2">---</td>
-                    </tr>
-                </tfoot>
             </table>
         </div>
 
+        <!-- SECTOR 2: PROJECTS -->
         <div id="sector-projects" class="sector-section">
             <h2>🏗️ إدارة طلبات مواد المشاريع (طلب مواد)</h2>
             <div class="section-box">
@@ -188,10 +182,39 @@
 </div>
 
 <script>
+    // التحقق التلقائي عند فتح الصفحة من صلاحية الجلسة (24 ساعة)
+    window.onload = function() {
+        checkSession();
+    };
+
+    function checkSession() {
+        const loginTime = localStorage.getItem('orkida_login_time');
+        const isAuth = localStorage.getItem('orkida_authenticated');
+        
+        if (isAuth === 'true' && loginTime) {
+            const timePassed = Date.now() - parseInt(loginTime);
+            const twentyFourHours = 24 * 60 * 60 * 1000; // 24 ساعة بالميلي ثانية
+            
+            if (timePassed < twentyFourHours) {
+                // الجلسة لا تزال صالحة
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('main-system-screen').style.display = 'block';
+                loadAllData();
+            } else {
+                // انتهت الـ 24 ساعة
+                handleLogout();
+            }
+        }
+    }
+
     function handleLogin() {
         const user = document.getElementById('login-username').value;
         const pass = document.getElementById('login-password').value;
         if (user === 'waleedorkida' && pass === 'waleedorkida') {
+            // حفظ حالة الدخول ووقت البدء
+            localStorage.setItem('orkida_authenticated', 'true');
+            localStorage.setItem('orkida_login_time', Date.now().toString());
+            
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('main-system-screen').style.display = 'block';
             loadAllData();
@@ -201,6 +224,8 @@
     }
 
     function handleLogout() {
+        localStorage.removeItem('orkida_authenticated');
+        localStorage.removeItem('orkida_login_time');
         document.getElementById('login-screen').style.display = 'flex';
         document.getElementById('main-system-screen').style.display = 'none';
     }
@@ -257,9 +282,8 @@
         tbody.innerHTML = '';
         const searchWord = document.getElementById('search-material').value.toLowerCase();
         const selectedCategory = document.getElementById('filter-material-category').value;
-        let displayedTotal = 0;
 
-        // فرز وترتيب بحسب المعرف تنازلياً (الأحدث أولاً)
+        // الترتيب التلقائي من الأحدث للأقدم بناءً على المعرف (id)
         let filtered = materialsItems.sort((a,b) => b.id - a.id);
         
         filtered = filtered.filter(item => materialView === "main" ? !item.is_archived : item.is_archived);
@@ -270,7 +294,6 @@
 
         filtered.forEach(item => {
             const itemTotal = (item.qty || 0) * (item.price || 0);
-            displayedTotal += itemTotal;
             tbody.innerHTML += `
                 <tr>
                     <td>${item.category}</td>
@@ -291,7 +314,6 @@
                     </td>
                 </tr>`;
         });
-        document.getElementById('materials-grand-total').innerText = displayedTotal.toFixed(2);
     }
 
     async function saveMaterialItem() {
@@ -386,9 +408,12 @@
         document.getElementById('item-currency').value = 'دولار';
     }
 
-    // ==========================================
-    // SECTOR 2: PROJECTS LOGIC
-    // ==========================================
+    function toggleMaterialArchiveView() {
+        materialView = materialView === "main" ? "archive" : "main";
+        document.getElementById('btn-material-archive-toggle').innerText = materialView === "main" ? "📂 عرض الأرشيف" : "📄 الجدول الرئيسي";
+        renderMaterialsTable();
+    }
+
     function renderProjectsTable() {
         const tbody = document.getElementById('projects-table-body');
         tbody.innerHTML = '';
