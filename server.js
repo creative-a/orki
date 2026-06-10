@@ -40,12 +40,11 @@ app.get('/api/items', async (req, res) => {
     res.json(formattedData);
 });
 
-// حفظ مادة واحدة مع طباعة الخطأ كاملاً في الـ Logs عند حدوثه
 app.post('/api/save-single', async (req, res) => {
     const item = req.body;
     console.log("📥 البيانات القادمة من المتصفح للمواد:", item);
 
-    // بناء الكائن وتأمين الحقول الحساسة للتواريخ والأرشيف
+    // بناء الكائن بالأسماء الحرفية الصحيحة والمطابقة لـ Supabase تماماً
     const dbRow = {
         id: item.id, 
         category: item.category, 
@@ -57,14 +56,12 @@ app.post('/api/save-single', async (req, res) => {
         unit: item.unit,
         price: item.price, 
         currency: item.currency,
-        is_archived: item.isArchived,
-        isArchived: item.isArchived // إرسال الصيغتين لضمان التوافق مع اسم عمودك في Supabase
+        is_archived: item.isArchived
     };
 
-    // إذا كانت إضافة جديدة (بدون تاريخ سابق)، نترك Supabase تولد التاريخ لتجنب رفض الصيغة النصية
-    if (item.createdAt && item.createdAt.includes('✏️') === false) {
-        dbRow.created_at = item.createdAt;
-        dbRow.createdAt = item.createdAt;
+    // تأمين إرسال التاريخ إلى العمود الصحيح فقط وبصيغة متوافقة
+    if (item.createdAt && !item.createdAt.includes('✏️')) {
+        dbRow.created_at = item.createdAt; 
     }
 
     const { error } = await supabase.from('quotation_items').upsert(dbRow);
@@ -77,6 +74,7 @@ app.post('/api/save-single', async (req, res) => {
     console.log("🟢 تم حفظ المادة بنجاح في Supabase!");
     res.json({ success: true });
 });
+
 
 app.delete('/api/delete/:id', async (req, res) => {
     const { id } = req.params;
