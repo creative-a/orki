@@ -352,39 +352,45 @@
         document.getElementById('materials-grand-total').innerText = displayedTotal.toFixed(2);
     }
 
-    async function saveMaterialItem() {
-        const id = document.getElementById('item-id').value;
-        const category = document.getElementById('item-category').value;
-        const name = document.getElementById('item-name').value;
-        const details = document.getElementById('item-details').value;
-        const source = document.getElementById('item-source').value;
-        const phone = document.getElementById('item-phone').value;
-        const qty = parseFloat(document.getElementById('item-qty').value);
-        const unit = document.getElementById('item-unit').value;
-        const price = parseFloat(document.getElementById('item-price').value);
-        const currency = document.getElementById('item-currency').value;
-        const savedDate = document.getElementById('item-date').value;
+async function saveMaterialItem() {
+    const id = document.getElementById('item-id').value;
+    const category = document.getElementById('item-category').value;
+    const name = document.getElementById('item-name').value;
+    const details = document.getElementById('item-details').value;
+    const source = document.getElementById('item-source').value;
+    const phone = document.getElementById('item-phone').value;
+    const qty = parseFloat(document.getElementById('item-qty').value);
+    const unit = document.getElementById('item-unit').value;
+    const price = parseFloat(document.getElementById('item-price').value);
+    const currency = document.getElementById('item-currency').value;
+    const savedDate = document.getElementById('item-date').value;
 
-        if (!category || !name || isNaN(qty) || isNaN(price)) {
-            alert("الرجاء ملء كافة الحقول الأساسية للمادة!");
-            return;
-        }
-
-        let targetItem;
-        if (id) {
-            targetItem = { id: Number(id), category, name, details, source, phone, qty, unit, price, currency, isArchived: materialView === "archive", createdAt: savedDate };
-        } else {
-            const currentDate = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' });
-            targetItem = { id: Date.now(), category, name, details, source, phone, qty, unit, price, currency, isArchived: false, createdAt: currentDate };
-        }
-        
-        const success = await saveMaterialToServer(targetItem);
-        if(success) {
-            clearMaterialForm();
-            await loadAllData();
-        }
+    if (!category || !name || isNaN(qty) || isNaN(price)) {
+        alert("الرجاء ملء كافة الحقول الأساسية للمادة!");
+        return;
     }
 
+    let targetItem;
+    if (id) {
+        targetItem = { id: Number(id), category, name, details, source, phone, qty, unit, price, currency, isArchived: materialView === "archive", createdAt: savedDate };
+    } else {
+        // توليد التاريخ بالإنجليزية صراحة بتحديد الـ Locale 'en-US' وتنسيق ISO مدعوم
+        const dateObj = new Date();
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        const englishDate = `${yyyy}-${mm}-${dd}`; // ستظهر النتيجة مثل: 2026-06-10
+
+        targetItem = { id: Date.now(), category, name, details, source, phone, qty, unit, price, currency, isArchived: false, createdAt: englishDate };
+    }
+    
+    const success = await saveMaterialToServer(targetItem);
+    if(success) {
+        clearMaterialForm();
+        await loadAllData();
+    }
+}
+    
     function editMaterialItem(id) {
         const item = materialsItems.find(i => i.id == id);
         document.getElementById('item-id').value = item.id;
