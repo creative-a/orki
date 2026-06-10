@@ -5,7 +5,6 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// قراءة المفاتيح والتوكنز بشكل آمن عبر متغيرات البيئة الخاصة بك
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -31,20 +30,18 @@ app.get('/api/items', async (req, res) => {
         qty: item.qty, 
         unit: item.unit,
         price: item.price, 
-        currency: item.currency || 'USD', 
+        currency: item.currency || 'دولار', 
         isArchived: item.is_archived,
         createdAt: item.created_at || '---' 
     }));
     res.json(formattedData);
 });
 
-app.post('/api/save', async (req, res) => {
-    const items = req.body;
-    if (!items || !Array.isArray(items)) {
-        return res.status(400).json({ error: "Expected an array of items" });
-    }
+// حفظ أو تحديث مادة واحدة بشكل صريح وفعال
+app.post('/api/save-single', async (req, res) => {
+    const item = req.body;
     
-    const dbRows = items.map(item => ({
+    const dbRow = {
         id: item.id, 
         category: item.category, 
         name: item.name, 
@@ -57,9 +54,9 @@ app.post('/api/save', async (req, res) => {
         currency: item.currency, 
         is_archived: item.isArchived,
         created_at: item.createdAt 
-    }));
+    };
 
-    const { error } = await supabase.from('quotation_items').upsert(dbRows);
+    const { error } = await supabase.from('quotation_items').upsert(dbRow);
     if (error) return res.status(500).json(error);
     res.json({ success: true });
 });
@@ -92,13 +89,11 @@ app.get('/api/projects', async (req, res) => {
     res.json(formattedData);
 });
 
-app.post('/api/projects/save', async (req, res) => {
-    const items = req.body;
-    if (!items || !Array.isArray(items)) {
-        return res.status(400).json({ error: "Expected an array of project items" });
-    }
+// حفظ أو تحديث طلب مشروع واحد بشكل صريح وفعال
+app.post('/api/projects/save-single', async (req, res) => {
+    const item = req.body;
     
-    const dbRows = items.map(item => ({
+    const dbRow = {
         id: item.id,
         project: item.project,
         material: item.material,
@@ -107,9 +102,9 @@ app.post('/api/projects/save', async (req, res) => {
         due_date: item.dueDate,
         is_archived: item.isArchived,
         created_at: item.createdAt
-    }));
+    };
 
-    const { error } = await supabase.from('project_requests').upsert(dbRows);
+    const { error } = await supabase.from('project_requests').upsert(dbRow);
     if (error) return res.status(500).json(error);
     res.json({ success: true });
 });
