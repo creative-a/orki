@@ -82,7 +82,6 @@
 
     <div class="container">
         
-        <!-- SECTOR 1: MATERIALS -->
         <div id="sector-materials" class="sector-section active">
             <h2>📄 إدارة عرض سعر المواد</h2>
             <div class="section-box">
@@ -158,9 +157,8 @@
             </table>
         </div>
 
-        <!-- SECTOR 2: PROJECTS -->
         <div id="sector-projects" class="sector-section">
-            <h2>🏗️ إدارة طلبات مواد المشاريع</h2>
+            <h2>🏗️ إدارة طلبات مواد المشاريع (طلب مواد)</h2>
             <div class="section-box">
                 <h3>➕ إضافة / تعديل طلب مشروع:</h3>
                 <div class="form-group">
@@ -281,10 +279,12 @@
             });
             if(res.ok) {
                 setSyncStatus(`🟢 Synced successfully: ${new Date().toLocaleTimeString()}`, false);
-                loadAllData();
+                return true;
             }
+            return false;
         } catch (error) {
             setSyncStatus("🔴 Auto-sync failed", true);
+            return false;
         }
     }
 
@@ -295,8 +295,7 @@
             const res = await fetch(`/api/delete/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 setSyncStatus("🟢 Deleted successfully", false);
-                materialsItems = materialsItems.filter(i => i.id != id);
-                renderMaterialsTable();
+                await loadAllData();
             }
         } catch (error) {
             setSyncStatus("🔴 Delete operation failed", true);
@@ -326,7 +325,7 @@
         filtered.forEach(item => {
             const itemTotal = item.qty * item.price;
             displayedTotal += itemTotal;
-            const archiveBtnText = materialView === "main" ? "أرشفة" : "إلغاء";
+            const archiveBtnText = materialView === "main" ? "أرشفة" : "إلغاء الأرشفة";
 
             tbody.innerHTML += `
                 <tr>
@@ -353,7 +352,7 @@
         document.getElementById('materials-grand-total').innerText = displayedTotal.toFixed(2);
     }
 
-    function saveMaterialItem() {
+    async function saveMaterialItem() {
         const id = document.getElementById('item-id').value;
         const category = document.getElementById('item-category').value;
         const name = document.getElementById('item-name').value;
@@ -379,8 +378,11 @@
             targetItem = { id: Date.now(), category, name, details, source, phone, qty, unit, price, currency, isArchived: false, createdAt: currentDate };
         }
         
-        saveMaterialToServer(targetItem);
-        clearMaterialForm();
+        const success = await saveMaterialToServer(targetItem);
+        if(success) {
+            clearMaterialForm();
+            await loadAllData();
+        }
     }
 
     function editMaterialItem(id) {
@@ -398,6 +400,7 @@
         document.getElementById('item-currency').value = item.currency || 'دولار';
         calculateMaterialRowTotal();
         document.getElementById('btn-material-save').innerText = "تحديث البيانات بالسحاب";
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function clearMaterialForm() {
@@ -420,11 +423,12 @@
         renderMaterialsTable();
     }
 
-    function toggleMaterialArchiveStatus(id) {
+    async function toggleMaterialArchiveStatus(id) {
         const item = materialsItems.find(i => i.id == id);
         if (item) {
             item.isArchived = !item.isArchived;
-            saveMaterialToServer(item);
+            const success = await saveMaterialToServer(item);
+            if(success) await loadAllData();
         }
     }
 
@@ -445,10 +449,12 @@
             });
             if(res.ok) {
                 setSyncStatus(`🟢 Synced successfully: ${new Date().toLocaleTimeString()}`, false);
-                loadAllData();
+                return true;
             }
+            return false;
         } catch (error) {
             setSyncStatus("🔴 Auto-sync failed", true);
+            return false;
         }
     }
 
@@ -459,8 +465,7 @@
             const res = await fetch(`/api/projects/delete/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 setSyncStatus("🟢 Deleted successfully", false);
-                projectsItems = projectsItems.filter(i => i.id != id);
-                renderProjectsTable();
+                await loadAllData();
             }
         } catch (error) {
             setSyncStatus("🔴 Delete operation failed", true);
@@ -476,7 +481,7 @@
         filtered = filtered.filter(item => item.project.toLowerCase().includes(searchWord) || item.material.toLowerCase().includes(searchWord));
 
         filtered.forEach(item => {
-            const archiveBtnText = projectView === "main" ? "أرشفة" : "إلغاء";
+            const archiveBtnText = projectView === "main" ? "أرشفة" : "إلغاء الأرشفة";
             tbody.innerHTML += `
                 <tr>
                     <td class="date-text">${item.createdAt}</td>
@@ -496,7 +501,7 @@
         });
     }
 
-    function saveProjectItem() {
+    async function saveProjectItem() {
         const id = document.getElementById('project-id').value;
         const project = document.getElementById('project-name').value;
         const material = document.getElementById('project-material').value;
@@ -518,8 +523,11 @@
             targetItem = { id: Date.now(), project, material, details, qty, dueDate, isArchived: false, createdAt: currentDate };
         }
         
-        saveProjectToServer(targetItem);
-        clearProjectForm();
+        const success = await saveProjectToServer(targetItem);
+        if(success) {
+            clearProjectForm();
+            await loadAllData();
+        }
     }
 
     function editProjectItem(id) {
@@ -532,6 +540,7 @@
         document.getElementById('project-qty').value = item.qty;
         document.getElementById('project-duedate').value = item.dueDate;
         document.getElementById('btn-project-save').innerText = "تحديث طلب المشروع بالسحاب";
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function clearProjectForm() {
@@ -550,11 +559,12 @@
         renderProjectsTable();
     }
 
-    function toggleProjectArchiveStatus(id) {
+    async function toggleProjectArchiveStatus(id) {
         const item = projectsItems.find(i => i.id == id);
         if (item) {
             item.isArchived = !item.isArchived;
-            saveProjectToServer(item);
+            const success = await saveProjectToServer(item);
+            if(success) await loadAllData();
         }
     }
 
