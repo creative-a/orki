@@ -73,6 +73,7 @@
                 <h3>➕ إضافة / تعديل مادة:</h3>
                 <div class="form-group">
                     <input type="hidden" id="item-id">
+                    <input type="hidden" id="item-created-at">
                     <select id="item-category">
                         <option value="" disabled selected>التصنيف الرئيسي...</option>
                         <option value="مواد بناء أساسية">مواد بناء أساسية</option>
@@ -87,6 +88,11 @@
                     <input type="number" id="item-qty" placeholder="الكمية" oninput="calculateMaterialRowTotal()">
                     <input type="text" id="item-unit" placeholder="الوحدة">
                     <input type="number" id="item-price" placeholder="سعر إفرادي" oninput="calculateMaterialRowTotal()">
+                    <select id="item-currency">
+                        <option value="دولار">دولار</option>
+                        <option value="ليرة سورى">ليرة سورى</option>
+                        <option value="درهم">درهم</option>
+                    </select>
                     <input type="text" id="item-total" placeholder="سعر إجمالي" disabled style="background: #e2e8f0; font-weight: bold;">
                     <button class="btn-add" id="btn-material-save" onclick="saveMaterialItem()">حفظ البيانات بالسحاب</button>
                 </div>
@@ -120,16 +126,18 @@
                         <th>الكمية</th>
                         <th>الوحدة</th>
                         <th>سعر إفرادي</th>
+                        <th>العملة</th>
                         <th>سعر إجمالي</th>
+                        <th>تاريخ الإدخال</th>
                         <th>العمليات المتاحة</th>
                     </tr>
                 </thead>
                 <tbody id="materials-table-body"></tbody>
                 <tfoot>
                     <tr class="total-row">
-                        <td colspan="8" style="text-align: left;">💰 الإجمالي الكلي للمواد المعروضة:</td>
+                        <td colspan="9" style="text-align: left;">💰 الإجمالي الكلي للمواد المعروضة:</td>
                         <td id="materials-grand-total">0</td>
-                        <td>---</td>
+                        <td colspan="2">---</td>
                     </tr>
                 </tfoot>
             </table>
@@ -141,6 +149,7 @@
                 <h3>➕ إضافة / تعديل طلب مشروع:</h3>
                 <div class="form-group">
                     <input type="hidden" id="project-id">
+                    <input type="hidden" id="project-created-at">
                     <input type="text" id="project-name" placeholder="اسم المشروع">
                     <input type="text" id="project-material" placeholder="المادة المطلوبة">
                     <input type="text" id="project-details" placeholder="التفصيل / المواصفات">
@@ -168,6 +177,7 @@
                         <th>التفصيل</th>
                         <th>الكمية</th>
                         <th>تاريخ الاستحقاق</th>
+                        <th>تاريخ الطلب</th>
                         <th>العمليات المتاحة</th>
                     </tr>
                 </thead>
@@ -249,7 +259,10 @@
         const selectedCategory = document.getElementById('filter-material-category').value;
         let displayedTotal = 0;
 
-        let filtered = materialsItems.filter(item => materialView === "main" ? !item.is_archived : item.is_archived);
+        // فرز وترتيب بحسب المعرف تنازلياً (الأحدث أولاً)
+        let filtered = materialsItems.sort((a,b) => b.id - a.id);
+        
+        filtered = filtered.filter(item => materialView === "main" ? !item.is_archived : item.is_archived);
         filtered = filtered.filter(item => (item.name||'').toLowerCase().includes(searchWord) || (item.source||'').toLowerCase().includes(searchWord));
         if(selectedCategory !== "الكل") {
             filtered = filtered.filter(item => item.category === selectedCategory);
@@ -268,7 +281,9 @@
                     <td>${item.qty}</td>
                     <td>${item.unit || ''}</td>
                     <td>${(item.price||0).toFixed(2)}</td>
+                    <td>${item.currency || 'دولار'}</td>
                     <td>${itemTotal.toFixed(2)}</td>
+                    <td>${item.created_at ? item.created_at.substring(0,10) : '---'}</td>
                     <td>
                         <button class="btn-edit" onclick="editMaterialItem(${item.id})">تعديل</button>
                         <button class="btn-archive" onclick="toggleMaterialArchiveStatus(${item.id})">${materialView === "main" ? "أرشفة" : "تفعيل"}</button>
@@ -281,6 +296,7 @@
 
     async function saveMaterialItem() {
         const id = document.getElementById('item-id').value;
+        const created_at = document.getElementById('item-created-at').value;
         const category = document.getElementById('item-category').value;
         const name = document.getElementById('item-name').value;
         const details = document.getElementById('item-details').value;
@@ -289,6 +305,7 @@
         const qty = parseFloat(document.getElementById('item-qty').value);
         const unit = document.getElementById('item-unit').value;
         const price = parseFloat(document.getElementById('item-price').value);
+        const currency = document.getElementById('item-currency').value;
 
         if (!category || !name || isNaN(qty) || isNaN(price)) {
             alert("الرجاء ملء الحقول الأساسية!");
@@ -297,9 +314,12 @@
 
         const targetItem = {
             id: id ? Number(id) : Date.now(),
-            category, name, details, source, phone, qty, unit, price,
+            category, name, details, source, phone, qty, unit, price, currency,
             is_archived: materialView === "archive"
         };
+        if (id && created_at) {
+            targetItem.created_at = created_at;
+        }
 
         setSyncStatus("⏳ Saving material...", false);
         const res = await fetch('/api/save-single', {
@@ -318,6 +338,7 @@
     function editMaterialItem(id) {
         const item = materialsItems.find(i => i.id == id);
         document.getElementById('item-id').value = item.id;
+        document.getElementById('item-created-at').value = item.created_at || '';
         document.getElementById('item-category').value = item.category;
         document.getElementById('item-name').value = item.name;
         document.getElementById('item-details').value = item.details || '';
@@ -326,6 +347,7 @@
         document.getElementById('item-qty').value = item.qty;
         document.getElementById('item-unit').value = item.unit || '';
         document.getElementById('item-price').value = item.price;
+        document.getElementById('item-currency').value = item.currency || 'دولار';
         calculateMaterialRowTotal();
     }
 
@@ -351,6 +373,7 @@
 
     function clearMaterialForm() {
         document.getElementById('item-id').value = '';
+        document.getElementById('item-created-at').value = '';
         document.getElementById('item-category').value = '';
         document.getElementById('item-name').value = '';
         document.getElementById('item-details').value = '';
@@ -360,12 +383,7 @@
         document.getElementById('item-unit').value = '';
         document.getElementById('item-price').value = '';
         document.getElementById('item-total').value = '';
-    }
-
-    function toggleMaterialArchiveView() {
-        materialView = materialView === "main" ? "archive" : "main";
-        document.getElementById('btn-material-archive-toggle').innerText = materialView === "main" ? "📂 عرض الأرشيف" : "📄 الجدول الرئيسي";
-        renderMaterialsTable();
+        document.getElementById('item-currency').value = 'دولار';
     }
 
     // ==========================================
@@ -376,7 +394,8 @@
         tbody.innerHTML = '';
         const searchWord = document.getElementById('search-project').value.toLowerCase();
 
-        let filtered = projectsItems.filter(item => projectView === "main" ? !item.is_archived : item.is_archived);
+        let filtered = projectsItems.sort((a,b) => b.id - a.id);
+        filtered = filtered.filter(item => projectView === "main" ? !item.is_archived : item.is_archived);
         filtered = filtered.filter(item => (item.project||'').toLowerCase().includes(searchWord) || (item.material||'').toLowerCase().includes(searchWord));
 
         filtered.forEach(item => {
@@ -387,6 +406,7 @@
                     <td>${item.details || ''}</td>
                     <td>${item.qty}</td>
                     <td>${item.due_date || '---'}</td>
+                    <td>${item.created_at ? item.created_at.substring(0,10) : '---'}</td>
                     <td>
                         <button class="btn-edit" onclick="editProjectItem(${item.id})">تعديل</button>
                         <button class="btn-archive" onclick="toggleProjectArchiveStatus(${item.id})">${projectView === "main" ? "أرشفة" : "تفعيل"}</button>
@@ -398,6 +418,7 @@
 
     async function saveProjectItem() {
         const id = document.getElementById('project-id').value;
+        const created_at = document.getElementById('project-created-at').value;
         const project = document.getElementById('project-name').value;
         const material = document.getElementById('project-material').value;
         const details = document.getElementById('project-details').value;
@@ -414,6 +435,9 @@
             project, material, details, qty, due_date,
             is_archived: projectView === "archive"
         };
+        if(id && created_at) {
+            targetItem.created_at = created_at;
+        }
 
         setSyncStatus("⏳ Saving project...", false);
         const res = await fetch('/api/projects/save-single', {
@@ -432,6 +456,7 @@
     function editProjectItem(id) {
         const item = projectsItems.find(i => i.id == id);
         document.getElementById('project-id').value = item.id;
+        document.getElementById('project-created-at').value = item.created_at || '';
         document.getElementById('project-name').value = item.project;
         document.getElementById('project-material').value = item.material;
         document.getElementById('project-details').value = item.details || '';
@@ -461,6 +486,7 @@
 
     function clearProjectForm() {
         document.getElementById('project-id').value = '';
+        document.getElementById('project-created-at').value = '';
         document.getElementById('project-name').value = '';
         document.getElementById('project-material').value = '';
         document.getElementById('project-details').value = '';
