@@ -18,7 +18,10 @@ app.use(express.static(__dirname));
 
 app.get('/api/items', async (req, res) => {
     const { data, error } = await supabase.from('quotation_items').select('*');
-    if (error) return res.status(500).json(error);
+    if (error) {
+        console.error("❌ خطأ أثناء جلب المواد:", error);
+        return res.status(500).json(error);
+    }
     
     const formattedData = (data || []).map(item => ({
         id: item.id, 
@@ -31,15 +34,18 @@ app.get('/api/items', async (req, res) => {
         unit: item.unit,
         price: item.price, 
         currency: item.currency || 'دولار', 
-        isArchived: item.is_archived,
-        createdAt: item.created_at || '---' 
+        isArchived: item.is_archived || item.isArchived || false,
+        createdAt: item.created_at || item.createdAt || '---' 
     }));
     res.json(formattedData);
 });
 
+// حفظ مادة واحدة مع طباعة الخطأ كاملاً في الـ Logs عند حدوثه
 app.post('/api/save-single', async (req, res) => {
     const item = req.body;
-    
+    console.log("📥 البيانات القادمة من المتصفح للمواد:", item);
+
+    // بناء الكائن وتأمين الحقول الحساسة للتواريخ والأرشيف
     const dbRow = {
         id: item.id, 
         category: item.category, 
@@ -50,13 +56,25 @@ app.post('/api/save-single', async (req, res) => {
         qty: item.qty, 
         unit: item.unit,
         price: item.price, 
-        currency: item.currency, 
+        currency: item.currency,
         is_archived: item.isArchived,
-        created_at: item.createdAt 
+        isArchived: item.isArchived // إرسال الصيغتين لضمان التوافق مع اسم عمودك في Supabase
     };
 
+    // إذا كانت إضافة جديدة (بدون تاريخ سابق)، نترك Supabase تولد التاريخ لتجنب رفض الصيغة النصية
+    if (item.createdAt && item.createdAt.includes('✏️') === false) {
+        dbRow.created_at = item.createdAt;
+        dbRow.createdAt = item.createdAt;
+    }
+
     const { error } = await supabase.from('quotation_items').upsert(dbRow);
-    if (error) return res.status(500).json(error);
+    
+    if (error) {
+        console.error("❌❌ خطأ فادح من Supabase في جدول المواد:", error);
+        return res.status(500).json({ success: false, message: error.message, details: error });
+    }
+    
+    console.log("🟢 تم حفظ المادة بنجاح في Supabase!");
     res.json({ success: true });
 });
 
@@ -82,8 +100,8 @@ app.get('/api/projects', async (req, res) => {
         details: item.details,
         qty: item.qty,
         dueDate: item.due_date,
-        isArchived: item.is_archived,
-        createdAt: item.created_at || '---'
+        isArchived: item.is_archived || item.isArchived || false,
+        createdAt: item.created_at || item.createdAt || '---'
     }));
     res.json(formattedData);
 });
@@ -99,11 +117,18 @@ app.post('/api/projects/save-single', async (req, res) => {
         qty: item.qty,
         due_date: item.dueDate,
         is_archived: item.isArchived,
-        created_at: item.createdAt
+        isArchived: item.isArchived
     };
 
+    if (item.createdAt) {
+        dbRow.created_at = item.createdAt;
+    }
+
     const { error } = await supabase.from('project_requests').upsert(dbRow);
-    if (error) return res.status(500).json(error);
+    if (error) {
+        console.error("❌ خطأ في قطاع المشاريع:", error);
+        return res.status(500).json(error);
+    }
     res.json({ success: true });
 });
 
