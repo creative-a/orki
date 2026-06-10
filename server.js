@@ -37,7 +37,6 @@ app.get('/api/items', async (req, res) => {
     res.json(formattedData);
 });
 
-// حفظ أو تحديث مادة واحدة بشكل صريح وفعال
 app.post('/api/save-single', async (req, res) => {
     const item = req.body;
     
@@ -89,7 +88,6 @@ app.get('/api/projects', async (req, res) => {
     res.json(formattedData);
 });
 
-// حفظ أو تحديث طلب مشروع واحد بشكل صريح وفعال
 app.post('/api/projects/save-single', async (req, res) => {
     const item = req.body;
     
