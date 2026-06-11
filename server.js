@@ -105,6 +105,50 @@ app.delete('/api/projects/delete/:id', async (req, res) => {
     res.json({ success: true });
 });
 
+// مثال لتحديث حالة الطلب من قبل المشتريات
+app.put('/api/projects-requests/:id/status', async (req, res) => {
+    const { id } = req.params;
+    const { is_completed } = req.body; // استقبال الحالة الجديدة من الـ HTML
+    try {
+        const { data, error } = await supabase
+            .from('project_requests')
+            .update({ is_completed: is_completed })
+            .eq('id', id);
+            
+        if (error) throw error;
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 1. جلب قائمة مشرفي المشاريع لعرضها في جدول الأدمن
+app.get('/api/project-supervisors', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('project_supervisors')
+            .select('*');
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. حفظ مشرف مشروع جديد يضيفه الأدمن
+app.post('/api/project-supervisors', async (req, res) => {
+    const { user_id, name, phone_number, project_id } = req.body;
+    try {
+        const { data, error } = await supabase
+            .from('project_supervisors')
+            .insert([{ user_id, name, phone_number, project_id }]);
+        if (error) throw error;
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.use((req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
