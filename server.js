@@ -85,23 +85,38 @@ app.delete('/api/materials/:id', async (req, res) => {
 // SECTOR 2: PROJECTS & REQUESTS APIS
 // ==========================================
 
+// 1. جلب المشاريع وعرضها للواجهة بشكل صحيح
 app.get('/api/projects', async (req, res) => {
-    const { data, error } = await supabase.from('projects').select('*').order('id', { ascending: false });
+    const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('id', { ascending: false });
+        
     if (error) return res.status(500).json(error);
-    res.json(data || []);
+    
+    // تحويل الحقل سحابياً من project_name إلى name لتفهمه واجهة الـ HTML تماماً
+    const mappedData = (data || []).map(p => ({
+        id: p.id,
+        name: p.project_name, // يقرأ الاسم الحقيقي من قاعدة البيانات
+        region: p.region,
+        start_date: p.start_date
+    }));
+
+    res.json(mappedData);
 });
 
+// 2. إدخال مشروع جديد في الحقل الصحيح والمباشر
 app.post('/api/projects', async (req, res) => {
     const { name, region, start_date } = req.body;
     console.log("📥 البيانات المستلمة لإنشاء مشروع:", { name, region, start_date });
 
     const formattedDate = start_date ? start_date : null;
 
-    // هنا قمنا بمطابقة الحقول مع جدولك: إرسال name إلى project_name
+    // الإدخال مباشرة في الحقل الإجباري الأصلي لجدولك
     const { data, error } = await supabase
         .from('projects')
         .insert([{ 
-            project_name: name,          // تم التعديل هنا ليطابق العمود الإجباري لديك
+            project_name: name, 
             region: region, 
             start_date: formattedDate 
         }])
@@ -114,25 +129,6 @@ app.post('/api/projects', async (req, res) => {
     
     console.log("✅ تم إدخال المشروع بنجاح في Supabase:", data);
     res.json({ success: true, data });
-});
-
-
-app.get('/api/projects', async (req, res) => {
-    const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('id', { ascending: false });
-    if (error) return res.status(500).json(error);
-    
-    // إذا كانت الواجهة index.html تتوقع كلمة name، نقوم بتحويلها هنا لتجنب تعديل الـ HTML
-    const mappedData = (data || []).map(p => ({
-        id: p.id,
-        name: p.project_name || p.name, // يقرأ project_name ويعرضه كـ name للواجهة
-        region: p.region,
-        start_date: p.start_date
-    }));
-
-    res.json(mappedData);
 });
 
 app.post('/api/project-requests', async (req, res) => {
