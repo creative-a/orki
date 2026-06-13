@@ -95,12 +95,16 @@ app.post('/api/projects', async (req, res) => {
     const { name, region, start_date } = req.body;
     console.log("📥 البيانات المستلمة لإنشاء مشروع:", { name, region, start_date });
 
-    // إذا كانت قيمة التاريخ فارغة، نرسل null لتجنب مشاكل الصيغة في SQL
     const formattedDate = start_date ? start_date : null;
 
+    // هنا قمنا بمطابقة الحقول مع جدولك: إرسال name إلى project_name
     const { data, error } = await supabase
         .from('projects')
-        .insert([{ name, region, start_date: formattedDate }])
+        .insert([{ 
+            project_name: name,          // تم التعديل هنا ليطابق العمود الإجباري لديك
+            region: region, 
+            start_date: formattedDate 
+        }])
         .select();
         
     if (error) {
