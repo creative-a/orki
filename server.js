@@ -5,6 +5,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// استدعاء متغيرات البيئة
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -38,12 +39,18 @@ app.post('/api/login', async (req, res) => {
 // SECTOR 1: MATERIALS APIS (عروض المواد)
 // ==========================================
 app.get('/api/materials', async (req, res) => {
-    const { data, error } = await supabase
-        .from('quotation_items')
-        .select('*')
-        .order('id', { ascending: false });
-    if (error) return res.status(500).json(error);
-    res.json(data || []);
+    try {
+        const { data, error } = await supabase
+            .from('quotation_items')
+            .select('*')
+            .order('id', { ascending: false });
+            
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        console.error("❌ خطأ جلب المواد:", err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/api/materials', async (req, res) => {
@@ -58,79 +65,108 @@ app.post('/api/materials', async (req, res) => {
         unit: item.unit,
         price: Number(item.price),
         currency: item.currency || 'دولار',
-        address: item.address || '',       // الحقل الجديد 1: العنوان
-        notes: item.notes || '',           // الحقل الجديد 2: الملاحظات
+        address: item.address || '',       
+        notes: item.notes || '',           
         is_archived: item.is_archived === true
     };
 
-    // الحفاظ على تاريخ الإنشاء الأصلي أو تركه لـ Supabase
     if (item.created_at) dbRow.created_at = item.created_at;
-
-    // استخدام upsert لدعم الإضافة والتعديل بنفس الوقت بناءً على الـ id
     if (item.id) dbRow.id = Number(item.id);
 
-    const { data, error } = await supabase.from('quotation_items').upsert([dbRow]).select();
-    if (error) return res.status(500).json(error);
-    res.json({ success: true, data });
+    try {
+        const { data, error } = await supabase.from('quotation_items').upsert([dbRow]).select();
+        if (error) throw error;
+        res.json({ success: true, data });
+    } catch (err) {
+        console.error("❌ خطأ حفظ المواد:", err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.delete('/api/materials/:id', async (req, res) => {
     const { id } = req.params;
-    const { error } = await supabase.from('quotation_items').delete().eq('id', id);
-    if (error) return res.status(500).json(error);
-    res.json({ success: true });
+    try {
+        const { error } = await supabase.from('quotation_items').delete().eq('id', id);
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ==========================================
-// SECTOR 2: PROJECTS & REQUESTS APIS
+// SECTOR 2: PROJECTS & REQUESTS APIS (المشاريع والطلبات)
 // ==========================================
 
-// 1. جلب المشاريع وعرضها للواجهة بشكل صحيح
+// جلب المشاريع - تم إصلاح دالة التحويل لتعمل بأمان ودون إيقاف السيرفر
 app.get('/api/projects', async (req, res) => {
-    const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('id', { ascending: false });
-        
-    if (error) return res.status(500).json(error);
-    
-    // تحويل الحقل سحابياً من project_name إلى name لتفهمه واجهة الـ HTML تماماً
-    const mappedData = (data || []).map(p => ({
-        id: p.id,
-        name: p.project_name, // يقرأ الاسم الحقيقي من قاعدة البيانات
-        region: p.region,
-        start_date: p.start_date
-    }));
+    try {
+        const { data, error } = await supabase
+            .from('projects')
+            .select('*')
+            .order('id', { ascending: false });
+            
+        if (error) throw error;
 
-    res.json(mappedData);
+        // تحويل آمن للحقول لضمان قراءتها في الواجهة index.html
+        const mappedData = (data || []).map(p => {
+            return {
+                id: p.id,
+                name: p.project_name || p.name || 'مشروع بدون اسم', 
+                region: p.region || '',
+                start_date: p.start_date || ''
+            };
+        });
+
+        res.json(mappedData);
+    } catch (err) {
+        console.error("❌ خطأ جلب المشاريع كلياً:", err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// 2. إدخال مشروع جديد في الحقل الصحيح والمباشر
+// إضافة مشروع جديد بالاعتماد على الحقل الحقيقي لقاعدة بياناتك project_name
 app.post('/api/projects', async (req, res) => {
     const { name, region, start_date } = req.body;
     console.log("📥 البيانات المستلمة لإنشاء مشروع:", { name, region, start_date });
 
     const formattedDate = start_date ? start_date : null;
 
-    // الإدخال مباشرة في الحقل الإجباري الأصلي لجدولك
-    const { data, error } = await supabase
-        .from('projects')
-        .insert([{ 
-            project_name: name, 
-            region: region, 
-            start_date: formattedDate 
-        }])
-        .select();
-        
-    if (error) {
-        console.error("❌ خطأ فادح من Supabase أثناء إدخال المشروع:", error);
-        return res.status(500).json({ error: error.message, details: error.details });
+    try {
+        const { data, error } = await supabase
+            .from('projects')
+            .insert([{ 
+                project_name: name, 
+                region: region, 
+                start_date: formattedDate 
+            }])
+            .select();
+            
+        if (error) throw error;
+        console.log("✅ تم إدخال المشروع بنجاح:", data);
+        res.json({ success: true, data });
+    } catch (err) {
+        console.error("❌ خطأ إدخال مشروع جديد:", err.message);
+        res.status(500).json({ error: err.message });
     }
-    
-    console.log("✅ تم إدخال المشروع بنجاح في Supabase:", data);
-    res.json({ success: true, data });
 });
 
+// جلب طلبات مواد المشاريع
+app.get('/api/project-requests', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('project_requests')
+            .select('*')
+            .order('id', { ascending: false });
+            
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// إضافة طلب مشروع جديد
 app.post('/api/project-requests', async (req, res) => {
     const item = req.body;
     const dbRow = {
@@ -143,39 +179,55 @@ app.post('/api/project-requests', async (req, res) => {
     };
     if (item.id) dbRow.id = Number(item.id);
 
-    const { data, error } = await supabase.from('project_requests').upsert([dbRow]).select();
-    if (error) return res.status(500).json(error);
-    res.json({ success: true, data });
+    try {
+        const { data, error } = await supabase.from('project_requests').upsert([dbRow]).select();
+        if (error) throw error;
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// تم توحيد المسار هنا تماماً ليكون متوافقاً مع الاسم المفرد المعتمد للملفات
+// تحديث حالة إنجاز الطلب
 app.put('/api/project-requests/:id/status', async (req, res) => {
     const { id } = req.params;
     const { is_completed } = req.body;
-    const { data, error } = await supabase
-        .from('project_requests')
-        .update({ is_completed: is_completed })
-        .eq('id', id)
-        .select();
-        
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ success: true, data });
+    try {
+        const { data, error } = await supabase
+            .from('project_requests')
+            .update({ is_completed: is_completed })
+            .eq('id', id)
+            .select();
+            
+        if (error) throw error;
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.delete('/api/project-requests/:id', async (req, res) => {
     const { id } = req.params;
-    const { error } = await supabase.from('project_requests').delete().eq('id', id);
-    if (error) return res.status(500).json(error);
-    res.json({ success: true });
+    try {
+        const { error } = await supabase.from('project_requests').delete().eq('id', id);
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ==========================================
-// SECTOR 3: SUPERVISORS & STAGES
+// SECTOR 3: SUPERVISORS & STAGES (المشرفين والمراحل)
 // ==========================================
 app.get('/api/project-supervisors', async (req, res) => {
-    const { data, error } = await supabase.from('project_supervisors').select('*');
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data || []);
+    try {
+        const { data, error } = await supabase.from('project_supervisors').select('*');
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/api/project-supervisors', async (req, res) => {
@@ -202,11 +254,16 @@ app.post('/api/project-supervisors', async (req, res) => {
 });
 
 app.get('/api/project-stages', async (req, res) => {
-    const { data, error } = await supabase.from('project_stages').select('*').order('id', { ascending: false });
-    if (error) return res.status(500).json(error);
-    res.json(data || []);
+    try {
+        const { data, error } = await supabase.from('project_stages').select('*').order('id', { ascending: false });
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
+// مسار افتراضي لتصفح ملف الـ HTML
 app.use((req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
