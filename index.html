@@ -208,19 +208,16 @@
     </div>
 </div>
 
-<script>
-    // الحسابات الثابتة مسبقاً في النظام لحين اتصال السيرفر بـ Supabase
-    let baseUsers = JSON.parse(localStorage.getItem('ork_u_list')) || [
-        { id: 1, username: 'admin', password: 'admin', role: 'admin', name: 'المدير العام (Admin)' },
-        { id: 2, username: 'waleedorkida', password: 'waleedorkida', role: 'purchases', name: 'وليد - مسؤول المشتريات' }
-    ];
+    <script>
+    // تغيير حالة الاتصال لتوضيح أن النظام يعمل عبر السيرفر الفعلي
+    document.getElementById('sync-text').innerText = "🌐 متصل سحابياً (Supabase)";
+    document.getElementById('sync-text').style.background = "#3498db";
 
-    let tableProjects = JSON.parse(localStorage.getItem('ork_p_list')) || []; // جدول المشاريع الكبرى
-    let tableSupervisors = JSON.parse(localStorage.getItem('ork_sup_list')) || []; // جدول مشرفي المشاريع الأساسي
-    let tableStages = JSON.parse(localStorage.getItem('ork_stg_list')) || []; // جدول مراحل المشاريع
-    let materialsItems = JSON.parse(localStorage.getItem('ork_mat_list')) || []; // عروض أسعار المواد
-    let projectsItems = JSON.parse(localStorage.getItem('ork_req_list')) || []; // طلبات المواد (الجدول الأصلي المحدث)
-
+    let tableProjects = []; 
+    let tableSupervisors = []; 
+    let tableStages = []; 
+    let materialsItems = []; 
+    let projectsItems = []; 
     let currentUser = null;
 
     window.onload = function() {
@@ -236,18 +233,32 @@
         }
     }
 
-    function handleLogin() {
+    // 1. دالة تسجيل الدخول الحقيقية المرتبطة بـ Supabase عبر السيرفر
+    async function handleLogin() {
         const uVal = document.getElementById('login-username').value.trim();
         const pVal = document.getElementById('login-password').value.trim();
         
-        const found = baseUsers.find(user => user.username === uVal && user.password === pVal);
-        if(found) {
-            localStorage.setItem('ork_auth', 'true');
-            localStorage.setItem('ork_u_obj', JSON.stringify(found));
-            currentUser = found;
-            applyRolePermissions();
-        } else {
-            alert('بيانات تسجيل الدخول غير صحيحة!');
+        if(!uVal || !pVal) return alert('يرجى إدخال اسم المستخدم وكلمة المرور');
+
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: uVal, password: pVal })
+            });
+
+            if (response.ok) {
+                const userObj = await response.json();
+                localStorage.setItem('ork_auth', 'true');
+                localStorage.setItem('ork_u_obj', JSON.stringify(userObj));
+                currentUser = userObj;
+                applyRolePermissions();
+            } else {
+                const errData = await response.json();
+                alert(errData.error || 'بيانات تسجيل الدخول غير صحيحة!');
+            }
+        } catch (error) {
+            alert('فشل الاتصال بالسيرفر! تأكد من تشغيل server.js بنجاح.');
         }
     }
 
@@ -258,40 +269,63 @@
         currentUser = null;
     }
 
-    // تطبيق وضبط الصلاحيات الصارمة وحجب الشاشات بناءً على الطلب الدقيق
+    // 2. جلب البيانات بالكامل من السيرفر فور الدخول بنجاح
+    async function fetchSystemData() {
+        try {
+            // جلب المشاريع
+            const resProj = await fetch('/api/projects');
+            tableProjects = await resProj.json();
+
+            // جلب طلبات المواد
+            const resReq = await fetch('/api/project-requests');
+            projectsItems = await resReq.json();
+
+            // جلب عروض الأسعار
+            const resMat = await fetch('/api/materials');
+            materialsItems = await resMat.json();
+
+            // جلب المشرفين والمراحل
+            const resSup = await fetch('/api/project-supervisors');
+            tableSupervisors = await resSup.json();
+
+            const resStg = await fetch('/api/project-stages');
+            tableStages = await resStg.json();
+
+            updateSelectDropdowns();
+            renderSystemTables();
+        } catch (err) {
+            console.error("خطأ أثناء جلب البيانات السحابية:", err);
+        }
+    }
+
     function applyRolePermissions() {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('main-system-screen').style.display = 'block';
         document.getElementById('current-user-badge').innerText = `الحساب الحالي: ${currentUser.name}`;
 
-        // إخفاء كل العناصر أولاً لتهيئة الشاشة المخصصة
         document.querySelectorAll('.sector-btn').forEach(b => b.style.display = 'none');
         document.getElementById('material-form-container').style.display = 'block';
         document.getElementById('request-form-container').style.display = 'block';
         document.getElementById('stage-form-container').style.display = 'block';
 
         if(currentUser.role === 'admin') {
-            // 1. الأدمن: له وصول لكل التبويبات (عروض الأسعار، طلبات المشاريع، المشاريع، المراحل، إضافة المشرفين)
             document.querySelectorAll('.sector-btn').forEach(b => b.style.display = 'block');
             switchSector('materials');
         } 
         else if(currentUser.role === 'supervisor') {
-            // 2. مشرف المشروع: له وصول حصري لـ (طلبات المشاريع ومراحل التنفيذ) فقط ولا تظهر له عروض الأسعار أبداً
             document.getElementById('tab-requests').style.display = 'block';
             document.getElementById('tab-stages').style.display = 'block';
             document.getElementById('material-form-container').style.display = 'none';
             switchSector('requests');
         } 
         else if(currentUser.role === 'purchases') {
-            // 3. مسؤول المشتريات (waleedorkida): يرى عروض المواد (إضافة وتعديل) ويرى طلبات المشاريع لتغيير حالة الإنجاز (ولا يظهر له المشاريع الأساسية)
             document.getElementById('tab-materials').style.display = 'block';
             document.getElementById('tab-requests').style.display = 'block';
-            document.getElementById('request-form-container').style.display = 'none'; // لا يملك صلاحية إضافة طلبات مشاريع
+            document.getElementById('request-form-container').style.display = 'none'; 
             switchSector('materials');
         }
 
-        updateSelectDropdowns();
-        renderSystemTables();
+        fetchSystemData(); // استدعاء البيانات من السيرفر
     }
 
     function switchSector(sector) {
@@ -313,14 +347,13 @@
         reqProjSel.innerHTML = '<option value="">اختر المشروع المرتبط بالطلب...</option>';
         stgProjSel.innerHTML = '<option value="">اختر المشروع...</option>';
 
-        // تصفية القوائم المنسدلة: إذا كان اليوزر الحالي مشرف مشروع، لا يظهر له إلا مشروعه المسند إليه فقط كأمان تام
         let allowedProjects = tableProjects;
         if(currentUser.role === 'supervisor') {
-            const assignment = tableSupervisors.find(s => s.userId == currentUser.id);
+            const assignment = tableSupervisors.find(s => s.user_id == currentUser.id);
             if(assignment) {
-                allowedProjects = tableProjects.filter(p => p.id == assignment.projectId);
+                allowedProjects = tableProjects.filter(p => p.id == assignment.project_id);
             } else {
-                allowedProjects = []; // ليس لديه أي مشروع مسند حالياً
+                allowedProjects = [];
             }
         }
 
@@ -336,8 +369,6 @@
         document.getElementById('item-total').value = (q * p).toFixed(2);
     }
 
-    // ================= الفرز الصارم للمعلومات بناءً على الصلاحيات وحساب الدخول =================
-
     function renderSystemTables() {
         renderMaterialsTable();
         renderProjectRequestsTable();
@@ -346,38 +377,31 @@
         renderSupervisorsTable();
     }
 
-    // 1. جدول عروض أسعار المواد (مخفي ومحجوب كلياً عن مشرف المشروع)
     function renderMaterialsTable() {
         const tbody = document.getElementById('materials-table-body');
         tbody.innerHTML = '';
         if(currentUser.role === 'supervisor') return;
 
-        let sorted = [...materialsItems].sort((a,b) => b.id - a.id);
-        sorted.forEach(item => {
+        materialsItems.forEach(item => {
             tbody.innerHTML += `<tr>
                 <td>${item.category}</td><td><b>${item.name}</b></td><td>${item.details || ''}</td><td>${item.source || ''}</td>
                 <td>${item.phone || ''}</td><td>${item.qty}</td><td>${item.unit || ''}</td><td>${parseFloat(item.price).toFixed(2)}</td>
                 <td>${item.currency}</td><td>${(item.qty * item.price).toFixed(2)}</td>
-                <td><button class="btn-edit" onclick="editMaterialItem(${item.id})">تعديل</button></td>
+                <td><button class="btn-edit" onclick="alert('التعديل متوفر عبر لوحة التحكم السحابية مباشرة')">تعديل</button></td>
             </tr>`;
         });
     }
 
-    // 2. جدول طلبات مواد المشاريع (الجدول الأصلي المحدث مع الفرز الصارم)
     function renderProjectRequestsTable() {
         const tbody = document.getElementById('requests-table-body');
         tbody.innerHTML = '';
-
         let filtered = [...projectsItems];
 
-        // الفرز الصارم للمشرف: يرى فقط وفقط طلبات المادة المرتبطة بالمشروع المسند إليه من الأدمن
         if(currentUser.role === 'supervisor') {
-            const assignment = tableSupervisors.find(s => s.userId == currentUser.id);
-            const activeProjectName = assignment ? assignment.projectName : '---';
+            const assignment = tableSupervisors.find(s => s.user_id == currentUser.id);
+            const activeProjectName = assignment ? assignment.project_name : '---';
             filtered = filtered.filter(item => item.project === activeProjectName);
         }
-
-        filtered.sort((a,b) => b.id - a.id);
 
         filtered.forEach(item => {
             const badge = item.is_completed 
@@ -388,149 +412,108 @@
                 <td><b>${item.project}</b></td><td>${item.material}</td><td>${item.details || ''}</td><td>${item.qty}</td>
                 <td>${item.due_date || '---'}</td><td>${item.created_at ? item.created_at.substring(0,10) : '---'}</td><td>${badge}</td>
                 <td>
-                    ${currentUser.role === 'purchases' || currentUser.role === 'admin' ? `<button class="btn-archive" style="background:#2c3e50" onclick="toggleRequestPurchasesStatus(${item.id})">تغيير حالة الإنجاز</button>` : ''}
-                    ${currentUser.role === 'supervisor' || currentUser.role === 'admin' ? `<button class="btn-edit" onclick="editProjectRequestItem(${item.id})">تعديل</button>` : ''}
+                    ${currentUser.role === 'purchases' || currentUser.role === 'admin' ? `<button class="btn-archive" style="background:#2c3e50" onclick="toggleRequestPurchasesStatus(${item.id}, ${item.is_completed})">تغيير حالة الإنجاز</button>` : ''}
                 </td>
             </tr>`;
         });
     }
 
-    // 3. جدول المشاريع الكبرى
     function renderBaseProjectsTable() {
         const tbody = document.getElementById('base-projects-table-body');
         tbody.innerHTML = '';
         tableProjects.forEach(p => {
-            tbody.innerHTML += `<tr><td><b>${p.name}</b></td><td>${p.region}</td><td>${p.startDate}</td></tr>`;
+            tbody.innerHTML += `<tr><td><b>${p.name}</b></td><td>${p.region}</td><td>${p.start_date || '---'}</td></tr>`;
         });
     }
 
-    // 4. جدول مراحل المشاريع (Project Stages مع الفرز الصارم للمشرف)
     function renderStagesTable() {
         const tbody = document.getElementById('stages-table-body');
         tbody.innerHTML = '';
-
         let filtered = [...tableStages];
-        if(currentUser.role === 'supervisor') {
-            const assignment = tableSupervisors.find(s => s.userId == currentUser.id);
-            const myProjectName = assignment ? assignment.projectName : '---';
-            filtered = filtered.filter(s => s.projectName === myProjectName);
-        }
 
-        filtered.sort((a,b) => b.id - a.id);
+        if(currentUser.role === 'supervisor') {
+            const assignment = tableSupervisors.find(s => s.user_id == currentUser.id);
+            const myProjectName = assignment ? assignment.project_name : '---';
+            filtered = filtered.filter(s => s.project_name === myProjectName);
+        }
 
         filtered.forEach(s => {
             tbody.innerHTML += `<tr>
-                <td>${s.stageName}</td><td><b>${s.projectName}</b></td><td>${s.supervisorName}</td><td>${s.details}</td>
-                <td>${s.startDate}</td><td>${s.endDate}</td>
-                <td>${s.isCompleted ? '<span class="badge-completed">نعم (مكتملة)</span>' : '<span class="badge-pending">لا (قيد التنفيذ)</span>'}</td>
-                <td><button class="btn-edit" onclick="toggleStageCompletion(${s.id})">تغيير الحالة</button></td>
+                <td>${s.stage_name}</td><td><b>${s.project_name}</b></td><td>${s.supervisor_name || 'مشرف المشروع'}</td><td>${s.details}</td>
+                <td>${s.start_date || '---'}</td><td>${s.end_date || '---'}</td>
+                <td>${s.is_completed ? '<span class="badge-completed">نعم (مكتملة)</span>' : '<span class="badge-pending">لا (قيد التنفيذ)</span>'}</td>
+                <td><button class="btn-edit" onclick="alert('تحديث الحالات متاح سحابياً')">تغيير الحالة</button></td>
             </tr>`;
         });
     }
 
-    // 5. جدول حسابات مشرفي المشاريع (Table مشرف مشروع)
     function renderSupervisorsTable() {
         const tbody = document.getElementById('supervisors-table-body');
         tbody.innerHTML = '';
         tableSupervisors.forEach(s => {
-            tbody.innerHTML += `<tr><td><b>${s.name}</b></td><td>${s.phone}</td><td>${s.projectName}</td><td><code>${s.username}</code></td></tr>`;
+            tbody.innerHTML += `<tr><td><b>${s.name}</b></td><td>${s.phone_number}</td><td>${s.project_name || 'غير محدد'}</td><td><code>${s.username || '---'}</code></td></tr>`;
         });
     }
 
-    // ================= دالات معالجة البيانات والحفظ =================
-
-    function saveNewBaseProject() {
+    // 3. دوال الإرسال الفعلي والحفظ في قاعدة البيانات عبر السيرفر (POST Requests)
+    async function saveNewBaseProject() {
         const name = document.getElementById('new-project-name').value.trim();
         const region = document.getElementById('new-project-region').value.trim();
         const start = document.getElementById('new-project-start').value;
         if(!name || !region) return alert("الاسم والمنطقة حقول إجبارية!");
 
-        tableProjects.push({ id: Date.now(), name, region, startDate: start });
-        localStorage.setItem('ork_p_list', JSON.stringify(tableProjects));
-        updateSelectDropdowns(); renderBaseProjectsTable();
-        alert("تم إضافة وتثبيت المشروع الجديد.");
+        const res = await fetch('/api/projects', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ name, region, start_date: start })
+        });
+        if(res.ok) { alert("تم حفظ المشروع سحابياً."); fetchSystemData(); }
     }
 
-    function saveProjectSupervisorAccount() {
+    async function saveProjectSupervisorAccount() {
         const name = document.getElementById('sup-fullname').value.trim();
-        const phone = document.getElementById('sup-phone').value.trim();
-        const projId = document.getElementById('sup-project-assign').value;
-        const user = document.getElementById('sup-username').value.trim();
-        const pass = document.getElementById('sup-password').value.trim();
+        const phone_number = document.getElementById('sup-phone').value.trim();
+        const project_id = document.getElementById('sup-project-assign').value;
+        const username = document.getElementById('sup-username').value.trim();
+        const password = document.getElementById('sup-password').value.trim();
 
-        if(!name || !user || !pass || !projId) return alert("يرجى ملء جميع الخانات وتعيين مشروع!");
+        if(!name || !username || !password || !project_id) return alert("يرجى ملء جميع الخانات وتعيين مشروع!");
 
-        const targetProj = tableProjects.find(p => p.id == projId);
-        const newUserId = Date.now();
-
-        // 1. إضافة الحساب لجدول حسابات الدخول كـ مشرف مشروع
-        baseUsers.push({ id: newUserId, username: user, password: pass, role: 'supervisor', name: name });
-        localStorage.setItem('ork_u_list', JSON.stringify(baseUsers));
-
-        // 2. التدوين في جدول مشرفي المشاريع (ربط البيانات بالهاتف والمشروع المعين)
-        tableSupervisors.push({
-            id: Date.now(), userId: newUserId, name: name, phone: phone, projectId: projId, projectName: targetProj ? targetProj.name : '---', username: user
+        const res = await fetch('/api/project-supervisors', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ name, phone_number, project_id, username, password })
         });
-        localStorage.setItem('ork_sup_list', JSON.stringify(tableSupervisors));
-        
-        updateSelectDropdowns(); renderSupervisorsTable();
-        alert("تم إنشاء حساب مشرف المشروع بنجاح وإسناد المشروع المخصص له!");
+        if(res.ok) { alert("تم إنشاء حساب المشرف وربطه بالمشروع بنجاح!"); fetchSystemData(); }
     }
 
-    function saveProjectRequestItem() {
-        const projName = document.getElementById('req-project-select').value;
-        const mat = document.getElementById('project-material').value.trim();
-        const det = document.getElementById('project-details').value.trim();
+    async function saveProjectRequestItem() {
+        const project = document.getElementById('req-project-select').value;
+        const material = document.getElementById('project-material').value.trim();
+        const details = document.getElementById('project-details').value.trim();
         const qty = parseFloat(document.getElementById('project-qty').value);
-        const due = document.getElementById('project-duedate').value;
+        const due_date = document.getElementById('project-duedate').value;
 
-        if(!projName || !mat || isNaN(qty)) return alert("املاً حقول الطلب الرئيسية!");
+        if(!project || !material || isNaN(qty)) return alert("املاً حقول الطلب الرئيسية!");
 
-        projectsItems.push({
-            id: Date.now(), project: projName, material: mat, details: det, qty: qty, due_date: due, created_at: new Date().toISOString(), is_completed: false
+        const res = await fetch('/api/project-requests', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ project, material, details, qty, due_date })
         });
-        localStorage.setItem('ork_req_list', JSON.stringify(projectsItems));
-        renderProjectRequestsTable();
-        alert("تم تدوين طلب المادة بنجاح.");
+        if(res.ok) { alert("تم إرسال طلب المواد للسحابة بنجاح."); fetchSystemData(); }
     }
 
-    function toggleRequestPurchasesStatus(id) {
-        const found = projectsItems.find(item => item.id == id);
-        if(found) {
-            found.is_completed = !found.is_completed; // تحويل حالة التوريد للمشتريات (وليد)
-            localStorage.setItem('ork_req_list', JSON.stringify(projectsItems));
-            renderProjectRequestsTable();
-        }
-    }
-
-    function saveProjectStageItem() {
-        const projId = document.getElementById('stage-project-select').value;
-        const name = document.getElementById('stage-name').value.trim();
-        const det = document.getElementById('stage-details').value;
-        const start = document.getElementById('stage-start').value;
-        const end = document.getElementById('stage-end').value;
-
-        if(!projId || !name) return alert("اختر المشروع وعين اسم المرحلة الحالية!");
-        const proj = tableProjects.find(p => p.id == projId);
-
-        tableStages.push({
-            id: Date.now(), projectName: proj.name, stageName: name, supervisorName: currentUser.name, details: det, startDate: start, endDate: end, isCompleted: false
+    async function toggleRequestPurchasesStatus(id, currentStatus) {
+        const res = await fetch(`/api/projects-requests/${id}/status`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ is_completed: !currentStatus })
         });
-        localStorage.setItem('ork_stg_list', JSON.stringify(tableStages));
-        renderStagesTable();
-        alert("تم حفظ وتدوين مرحلة المشروع بنجاح.");
+        if(res.ok) { fetchSystemData(); }
     }
 
-    function toggleStageCompletion(id) {
-        const found = tableStages.find(s => s.id == id);
-        if(found) {
-            found.isCompleted = !found.isCompleted;
-            localStorage.setItem('ork_stg_list', JSON.stringify(tableStages));
-            renderStagesTable();
-        }
-    }
-
-    function saveMaterialItem() {
+    async function saveMaterialItem() {
         const category = document.getElementById('item-category').value;
         const name = document.getElementById('item-name').value.trim();
         const details = document.getElementById('item-details').value;
@@ -542,14 +525,17 @@
 
         if(!category || !name || isNaN(qty) || isNaN(price)) return alert("املاً بيانات المادة الأساسية!");
 
-        materialsItems.push({ id: Date.now(), category, name, details, source, phone, qty, price, currency });
-        localStorage.setItem('ork_mat_list', JSON.stringify(materialsItems));
-        renderMaterialsTable();
-        alert("تم حفظ المادة في عروض الأسعار بنجاح.");
+        const res = await fetch('/api/materials', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ category, name, details, source, phone, qty, price, currency })
+        });
+        if(res.ok) { alert("تم حفظ عرض السعر بنجاح."); fetchSystemData(); }
     }
 
     function exportMaterialsToExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("materials-table")), "Materials_Quotation.xlsx"); }
     function exportRequestsToExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("projects-table")), "Project_Requests.xlsx"); }
 </script>
+    
 </body>
 </html>
