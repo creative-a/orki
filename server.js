@@ -117,10 +117,22 @@ app.post('/api/projects', async (req, res) => {
 });
 
 
-app.get('/api/project-requests', async (req, res) => {
-    const { data, error } = await supabase.from('project_requests').select('*').order('id', { ascending: false });
+app.get('/api/projects', async (req, res) => {
+    const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('id', { ascending: false });
     if (error) return res.status(500).json(error);
-    res.json(data || []);
+    
+    // إذا كانت الواجهة index.html تتوقع كلمة name، نقوم بتحويلها هنا لتجنب تعديل الـ HTML
+    const mappedData = (data || []).map(p => ({
+        id: p.id,
+        name: p.project_name || p.name, // يقرأ project_name ويعرضه كـ name للواجهة
+        region: p.region,
+        start_date: p.start_date
+    }));
+
+    res.json(mappedData);
 });
 
 app.post('/api/project-requests', async (req, res) => {
