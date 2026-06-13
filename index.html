@@ -71,7 +71,7 @@
             <button class="sector-btn" id="tab-supervisors" onclick="switchSector('supervisors')">👥 إضافة مشرف مشروع (Admin)</button>
         </div>
         <div>
-            <span class="sync-status" id="sync-text">🔄 متصل محلياً</span>
+            <span class="sync-status" id="sync-text">🔄 متصل سحابياً</span>
             <button class="logout-btn" onclick="handleLogout()">تسجيل خروج</button>
         </div>
     </div>
@@ -81,9 +81,10 @@
         <div id="sector-materials" class="sector-section">
             <h2>📄 إدارة عرض سعر المواد</h2>
             <div class="section-box" id="material-form-container">
-                <h3>➕ إضافة مادة جديدة لعروض الأسعار:</h3>
+                <h3>➕ إضافة / تعديل مادة لعروض الأسعار:</h3>
                 <div class="form-group">
                     <input type="hidden" id="item-id">
+                    <input type="hidden" id="item-created-at">
                     <select id="item-category">
                         <option value="" disabled selected>التصنيف الرئيسي...</option>
                         <option value="مواد بناء أساسية">مواد بناء أساسية</option>
@@ -95,7 +96,7 @@
                     <input type="text" id="item-details" placeholder="النوع / التفصيل">
                     <input type="text" id="item-source" placeholder="المصدر (المورد)">
                     <input type="text" id="item-phone" placeholder="رقم الهاتف">
-                    <input type="number" id="item-qty" placeholder="الكمية" oninput="calculateMaterialRowTotal()">
+                    <input type="text" id="item-address" placeholder="العنوان المعين"> <input type="number" id="item-qty" placeholder="الكمية" oninput="calculateMaterialRowTotal()">
                     <input type="text" id="item-unit" placeholder="الوحدة">
                     <input type="number" id="item-price" placeholder="سعر إفرادي" oninput="calculateMaterialRowTotal()">
                     <select id="item-currency">
@@ -103,16 +104,18 @@
                         <option value="ليرة سورى">ليرة سورى</option>
                     </select>
                     <input type="text" id="item-total" placeholder="سعر إجمالي" disabled style="background: #e2e8f0; font-weight: bold;">
-                    <button class="btn-add" onclick="saveMaterialItem()">إضافة مادة</button>
+                    <input type="text" id="item-notes" placeholder="ملاحظات إضافية"> <button class="btn-add" id="btn-save-material" onclick="saveMaterialItem()">حفظ وتثبيت المادة</button>
                 </div>
             </div>
             <div class="action-bar">
-                <input type="text" id="search-material" oninput="renderMaterialsTable()" placeholder="ابحث باسم المادة أو المصدر...">
+                <input type="text" id="search-material" placeholder="ابحث باسم المادة أو المصدر...">
                 <button class="btn-excel" onclick="exportMaterialsToExcel()">📊 تخريج إكسل</button>
             </div>
             <table>
                 <thead>
-                    <tr><th>التصنيف</th><th>اسم المادة</th><th>التفصيل</th><th>المصدر</th><th>الهاتف</th><th>الكمية</th><th>الوحدة</th><th>إفرادي</th><th>العملة</th><th>إجمالي</th><th>العمليات</th></tr>
+                    <tr>
+                        <th>التصنيف</th><th>اسم المادة</th><th>التفصيل</th><th>المصدر</th><th>الهاتف</th><th>العنوان</th><th>الكمية</th><th>الوحدة</th><th>إفرادي</th><th>العملة</th><th>إجمالي</th><th>التاريخ</th><th>ملاحظات</th><th>العمليات</th>
+                    </tr>
                 </thead>
                 <tbody id="materials-table-body"></tbody>
             </table>
@@ -133,7 +136,7 @@
                 </div>
             </div>
             <div class="action-bar">
-                <input type="text" id="search-project" oninput="renderProjectRequestsTable()" placeholder="ابحث باسم المشروع أو المادة...">
+                <input type="text" id="search-project" placeholder="ابحث باسم المشروع...">
                 <button class="btn-excel" onclick="exportRequestsToExcel()">📊 تخريج لـ إكسل</button>
             </div>
             <table>
@@ -208,10 +211,9 @@
     </div>
 </div>
 
-    <script>
-    // تغيير حالة الاتصال لتوضيح أن النظام يعمل عبر السيرفر الفعلي
+<script>
     document.getElementById('sync-text').innerText = "🌐 متصل سحابياً (Supabase)";
-    document.getElementById('sync-text').style.background = "#3498db";
+    document.getElementById('sync-text').style.background = "#27ae60";
 
     let tableProjects = []; 
     let tableSupervisors = []; 
@@ -220,9 +222,7 @@
     let projectsItems = []; 
     let currentUser = null;
 
-    window.onload = function() {
-        checkSession();
-    };
+    window.onload = function() { checkSession(); };
 
     function checkSession() {
         const isAuth = localStorage.getItem('ork_auth');
@@ -233,12 +233,10 @@
         }
     }
 
-    // 1. دالة تسجيل الدخول الحقيقية المرتبطة بـ Supabase عبر السيرفر
     async function handleLogin() {
         const uVal = document.getElementById('login-username').value.trim();
         const pVal = document.getElementById('login-password').value.trim();
-        
-        if(!uVal || !pVal) return alert('يرجى إدخال اسم المستخدم وكلمة المرور');
+        if(!uVal || !pVal) return alert('يرجى إدخال الحساب كاملاً');
 
         try {
             const response = await fetch('/api/login', {
@@ -254,11 +252,10 @@
                 currentUser = userObj;
                 applyRolePermissions();
             } else {
-                const errData = await response.json();
-                alert(errData.error || 'بيانات تسجيل الدخول غير صحيحة!');
+                alert('بيانات تسجيل الدخول غير مطابقة في Supabase!');
             }
         } catch (error) {
-            alert('فشل الاتصال بالسيرفر! تأكد من تشغيل server.js بنجاح.');
+            alert('خطأ في الاتصال بالخادم!');
         }
     }
 
@@ -269,22 +266,17 @@
         currentUser = null;
     }
 
-    // 2. جلب البيانات بالكامل من السيرفر فور الدخول بنجاح
     async function fetchSystemData() {
         try {
-            // جلب المشاريع
             const resProj = await fetch('/api/projects');
             tableProjects = await resProj.json();
 
-            // جلب طلبات المواد
-            const resReq = await fetch('/api/project-requests');
+            const resReq = await fetch('/api/project-requests'); // مسار مفرد صحيح وموحد
             projectsItems = await resReq.json();
 
-            // جلب عروض الأسعار
             const resMat = await fetch('/api/materials');
             materialsItems = await resMat.json();
 
-            // جلب المشرفين والمراحل
             const resSup = await fetch('/api/project-supervisors');
             tableSupervisors = await resSup.json();
 
@@ -294,7 +286,7 @@
             updateSelectDropdowns();
             renderSystemTables();
         } catch (err) {
-            console.error("خطأ أثناء جلب البيانات السحابية:", err);
+            console.error("خطأ جلب البيانات السحابية:", err);
         }
     }
 
@@ -319,13 +311,13 @@
             switchSector('requests');
         } 
         else if(currentUser.role === 'purchases') {
+            // وليد (المشتريات) يرى عروض المواد وطلبات المواد بشكل كامل وصلاحيات التعديل والحذف متاحة له
             document.getElementById('tab-materials').style.display = 'block';
             document.getElementById('tab-requests').style.display = 'block';
             document.getElementById('request-form-container').style.display = 'none'; 
             switchSector('materials');
         }
-
-        fetchSystemData(); // استدعاء البيانات من السيرفر
+        fetchSystemData();
     }
 
     function switchSector(sector) {
@@ -356,7 +348,6 @@
                 allowedProjects = [];
             }
         }
-
         allowedProjects.forEach(p => {
             reqProjSel.innerHTML += `<option value="${p.name}">${p.name}</option>`;
             stgProjSel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
@@ -383,13 +374,135 @@
         if(currentUser.role === 'supervisor') return;
 
         materialsItems.forEach(item => {
+            const dateStr = item.created_at ? item.created_at.substring(0, 10) : '---';
+            const isArchivedBadge = item.is_archived ? ' <span style="color:red">(مؤرشف)</span>' : '';
+            
             tbody.innerHTML += `<tr>
-                <td>${item.category}</td><td><b>${item.name}</b></td><td>${item.details || ''}</td><td>${item.source || ''}</td>
-                <td>${item.phone || ''}</td><td>${item.qty}</td><td>${item.unit || ''}</td><td>${parseFloat(item.price).toFixed(2)}</td>
-                <td>${item.currency}</td><td>${(item.qty * item.price).toFixed(2)}</td>
-                <td><button class="btn-edit" onclick="alert('التعديل متوفر عبر لوحة التحكم السحابية مباشرة')">تعديل</button></td>
+                <td>${item.category}</td>
+                <td><b>${item.name}</b>${isArchivedBadge}</td>
+                <td>${item.details || ''}</td>
+                <td>${item.source || ''}</td>
+                <td>${item.phone || ''}</td>
+                <td>${item.address || '---'}</td> <td>${item.qty}</td>
+                <td>${item.unit || ''}</td>
+                <td>${parseFloat(item.price).toFixed(2)}</td>
+                <td>${item.currency}</td>
+                <td>${(item.qty * item.price).toFixed(2)}</td>
+                <td>${dateStr}</td> <td>${item.notes || '---'}</td> <td>
+                    <button class="btn-edit" onclick="editMaterialItemInForm(${item.id})">تعديل</button>
+                    <button class="btn-archive" onclick="archiveMaterialItem(${item.id}, ${item.is_archived})">أرشفة</button>
+                    <button class="btn-delete" onclick="deleteMaterialItemFromDb(${item.id})">حذف</button>
+                </td>
             </tr>`;
         });
+    }
+
+    function editMaterialItemInForm(id) {
+        const match = materialsItems.find(i => i.id == id);
+        if(match) {
+            document.getElementById('item-id').value = match.id;
+            document.getElementById('item-created-at').value = match.created_at || '';
+            document.getElementById('item-category').value = match.category;
+            document.getElementById('item-name').value = match.name;
+            document.getElementById('item-details').value = match.details || '';
+            document.getElementById('item-source').value = match.source || '';
+            document.getElementById('item-phone').value = match.phone || '';
+            document.getElementById('item-address').value = match.address || '';
+            document.getElementById('item-qty').value = match.qty;
+            document.getElementById('item-unit').value = match.unit || '';
+            document.getElementById('item-price').value = match.price;
+            document.getElementById('item-currency').value = match.currency;
+            document.getElementById('item-notes').value = match.notes || '';
+            calculateMaterialRowTotal();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }
+
+    async function saveMaterialItem() {
+        const id = document.getElementById('item-id').value;
+        const created_at = document.getElementById('item-created-at').value;
+        const category = document.getElementById('item-category').value;
+        const name = document.getElementById('item-name').value.trim();
+        const details = document.getElementById('item-details').value;
+        const source = document.getElementById('item-source').value;
+        const phone = document.getElementById('item-phone').value;
+        const address = document.getElementById('item-address').value; // جلب العنوان
+        const qty = parseFloat(document.getElementById('item-qty').value);
+        const price = parseFloat(document.getElementById('item-price').value);
+        const currency = document.getElementById('item-currency').value;
+        const notes = document.getElementById('item-notes').value; // جلب الملاحظات
+
+        if(!category || !name || isNaN(qty) || isNaN(price)) return alert("املاً حقول المادة الأساسية!");
+
+        const payload = { category, name, details, source, phone, address, qty, price, currency, notes };
+        if(id) payload.id = id;
+        if(created_at) payload.created_at = created_at;
+
+        const res = await fetch('/api/materials', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        if(res.ok) {
+            alert("تم حفظ وتحديث البيانات سحابياً بنجاح.");
+            clearMaterialForm();
+            fetchSystemData();
+        }
+    }
+
+    async function archiveMaterialItem(id, currentStatus) {
+        const match = materialsItems.find(i => i.id == id);
+        if(!match) return;
+        match.is_archived = !currentStatus;
+        const res = await fetch('/api/materials', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(match)
+        });
+        if(res.ok) { fetchSystemData(); }
+    }
+
+    async function deleteMaterialItemFromDb(id) {
+        if(!confirm("هل أنت متأكد من الحذف النهائي من السيرفر السحابي؟")) return;
+        const res = await fetch(`/api/materials/${id}`, { method: 'DELETE' });
+        if(res.ok) { fetchSystemData(); }
+    }
+
+    function clearMaterialForm() {
+        document.getElementById('item-id').value = '';
+        document.getElementById('item-created-at').value = '';
+        document.getElementById('item-name').value = '';
+        document.getElementById('item-details').value = '';
+        document.getElementById('item-source').value = '';
+        document.getElementById('item-phone').value = '';
+        document.getElementById('item-address').value = '';
+        document.getElementById('item-qty').value = '';
+        document.getElementById('item-price').value = '';
+        document.getElementById('item-total').value = '';
+        document.getElementById('item-notes').value = '';
+    }
+
+    // إصلاح وحفظ المشاريع للأدمن بشكل مستقر وفوري
+    async function saveNewBaseProject() {
+        const name = document.getElementById('new-project-name').value.trim();
+        const region = document.getElementById('new-project-region').value.trim();
+        const start_date = document.getElementById('new-project-start').value;
+        if(!name || !region) return alert("الاسم والمنطقة حقول إجبارية!");
+
+        const res = await fetch('/api/projects', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ name, region, start_date })
+        });
+        if(res.ok) { 
+            alert("تم تثبيت وإدخال المشروع الجديد بالنظام بنجاح.");
+            document.getElementById('new-project-name').value = '';
+            document.getElementById('new-project-region').value = '';
+            document.getElementById('new-project-start').value = '';
+            fetchSystemData(); 
+        } else {
+            alert("فشل إرسال المشروع للسيرفر.");
+        }
     }
 
     function renderProjectRequestsTable() {
@@ -418,6 +531,15 @@
         });
     }
 
+    async function toggleRequestPurchasesStatus(id, currentStatus) {
+        const res = await fetch(`/api/project-requests/${id}/status`, { // تم تصحيح الـ bug هنا أيضاً للمسار المفرد الموحد
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ is_completed: !currentStatus })
+        });
+        if(res.ok) { fetchSystemData(); }
+    }
+
     function renderBaseProjectsTable() {
         const tbody = document.getElementById('base-projects-table-body');
         tbody.innerHTML = '';
@@ -430,19 +552,17 @@
         const tbody = document.getElementById('stages-table-body');
         tbody.innerHTML = '';
         let filtered = [...tableStages];
-
         if(currentUser.role === 'supervisor') {
             const assignment = tableSupervisors.find(s => s.user_id == currentUser.id);
             const myProjectName = assignment ? assignment.project_name : '---';
             filtered = filtered.filter(s => s.project_name === myProjectName);
         }
-
         filtered.forEach(s => {
             tbody.innerHTML += `<tr>
                 <td>${s.stage_name}</td><td><b>${s.project_name}</b></td><td>${s.supervisor_name || 'مشرف المشروع'}</td><td>${s.details}</td>
                 <td>${s.start_date || '---'}</td><td>${s.end_date || '---'}</td>
-                <td>${s.is_completed ? '<span class="badge-completed">نعم (مكتملة)</span>' : '<span class="badge-pending">لا (قيد التنفيذ)</span>'}</td>
-                <td><button class="btn-edit" onclick="alert('تحديث الحالات متاح سحابياً')">تغيير الحالة</button></td>
+                <td>${s.is_completed ? '<span class="badge-completed">نعم</span>' : '<span class="badge-pending">قيد التنفيذ</span>'}</td>
+                <td><button class="btn-edit" onclick="alert('متاح سحابياً')">تغيير الحالة</button></td>
             </tr>`;
         });
     }
@@ -453,38 +573,6 @@
         tableSupervisors.forEach(s => {
             tbody.innerHTML += `<tr><td><b>${s.name}</b></td><td>${s.phone_number}</td><td>${s.project_name || 'غير محدد'}</td><td><code>${s.username || '---'}</code></td></tr>`;
         });
-    }
-
-    // 3. دوال الإرسال الفعلي والحفظ في قاعدة البيانات عبر السيرفر (POST Requests)
-    async function saveNewBaseProject() {
-        const name = document.getElementById('new-project-name').value.trim();
-        const region = document.getElementById('new-project-region').value.trim();
-        const start = document.getElementById('new-project-start').value;
-        if(!name || !region) return alert("الاسم والمنطقة حقول إجبارية!");
-
-        const res = await fetch('/api/projects', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ name, region, start_date: start })
-        });
-        if(res.ok) { alert("تم حفظ المشروع سحابياً."); fetchSystemData(); }
-    }
-
-    async function saveProjectSupervisorAccount() {
-        const name = document.getElementById('sup-fullname').value.trim();
-        const phone_number = document.getElementById('sup-phone').value.trim();
-        const project_id = document.getElementById('sup-project-assign').value;
-        const username = document.getElementById('sup-username').value.trim();
-        const password = document.getElementById('sup-password').value.trim();
-
-        if(!name || !username || !password || !project_id) return alert("يرجى ملء جميع الخانات وتعيين مشروع!");
-
-        const res = await fetch('/api/project-supervisors', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ name, phone_number, project_id, username, password })
-        });
-        if(res.ok) { alert("تم إنشاء حساب المشرف وربطه بالمشروع بنجاح!"); fetchSystemData(); }
     }
 
     async function saveProjectRequestItem() {
@@ -501,41 +589,28 @@
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ project, material, details, qty, due_date })
         });
-        if(res.ok) { alert("تم إرسال طلب المواد للسحابة بنجاح."); fetchSystemData(); }
+        if(res.ok) { alert("تم حفظ الطلب."); fetchSystemData(); }
     }
 
-    async function toggleRequestPurchasesStatus(id, currentStatus) {
-        const res = await fetch(`/api/projects-requests/${id}/status`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ is_completed: !currentStatus })
-        });
-        if(res.ok) { fetchSystemData(); }
-    }
+    async function saveProjectSupervisorAccount() {
+        const name = document.getElementById('sup-fullname').value.trim();
+        const phone_number = document.getElementById('sup-phone').value.trim();
+        const project_id = document.getElementById('sup-project-assign').value;
+        const username = document.getElementById('sup-username').value.trim();
+        const password = document.getElementById('sup-password').value.trim();
 
-    async function saveMaterialItem() {
-        const category = document.getElementById('item-category').value;
-        const name = document.getElementById('item-name').value.trim();
-        const details = document.getElementById('item-details').value;
-        const source = document.getElementById('item-source').value;
-        const phone = document.getElementById('item-phone').value;
-        const qty = parseFloat(document.getElementById('item-qty').value);
-        const price = parseFloat(document.getElementById('item-price').value);
-        const currency = document.getElementById('item-currency').value;
+        if(!name || !username || !password || !project_id) return alert("املاً جميع بيانات المشرف!");
 
-        if(!category || !name || isNaN(qty) || isNaN(price)) return alert("املاً بيانات المادة الأساسية!");
-
-        const res = await fetch('/api/materials', {
+        const res = await fetch('/api/project-supervisors', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ category, name, details, source, phone, qty, price, currency })
+            body: JSON.stringify({ name, phone_number, project_id, username, password })
         });
-        if(res.ok) { alert("تم حفظ عرض السعر بنجاح."); fetchSystemData(); }
+        if(res.ok) { alert("تم الحفظ بنجاح!"); fetchSystemData(); }
     }
 
-    function exportMaterialsToExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("materials-table")), "Materials_Quotation.xlsx"); }
-    function exportRequestsToExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("projects-table")), "Project_Requests.xlsx"); }
+    function exportMaterialsToExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("materials-table")), "Materials.xlsx"); }
+    function exportRequestsToExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("projects-table")), "Requests.xlsx"); }
 </script>
-    
 </body>
 </html>
