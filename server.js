@@ -93,14 +93,25 @@ app.get('/api/projects', async (req, res) => {
 
 app.post('/api/projects', async (req, res) => {
     const { name, region, start_date } = req.body;
+    console.log("📥 البيانات المستلمة لإنشاء مشروع:", { name, region, start_date });
+
+    // إذا كانت قيمة التاريخ فارغة، نرسل null لتجنب مشاكل الصيغة في SQL
+    const formattedDate = start_date ? start_date : null;
+
     const { data, error } = await supabase
         .from('projects')
-        .insert([{ name, region, start_date }])
-        .select(); // إضافة .select() لضمان إرجاع البيانات ونجاح طلب الـ fetch
+        .insert([{ name, region, start_date: formattedDate }])
+        .select();
         
-    if (error) return res.status(500).json(error);
+    if (error) {
+        console.error("❌ خطأ فادح من Supabase أثناء إدخال المشروع:", error);
+        return res.status(500).json({ error: error.message, details: error.details });
+    }
+    
+    console.log("✅ تم إدخال المشروع بنجاح في Supabase:", data);
     res.json({ success: true, data });
 });
+
 
 app.get('/api/project-requests', async (req, res) => {
     const { data, error } = await supabase.from('project_requests').select('*').order('id', { ascending: false });
