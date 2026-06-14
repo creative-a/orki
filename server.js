@@ -298,11 +298,72 @@ app.post('/api/project-supervisors', async (req, res) => {
 });
 
 //////// STAGES
+// 1. جلب مراحل المشروع مع دمج الأسماء ديناميكياً للعرض في الشاشة
 app.get('/api/project-stages', async (req, res) => {
     try {
-        const { data, error } = await supabase.from('project_stages').select('*').order('id', { ascending: false });
-        if (error) throw error;
-        res.json(data || []);
+        // جلب المراحل من جدولها النقي
+        const { data: stages, error: stageErr } = await supabase
+            .from('project_stages')
+            .select('*')
+            .order('id', { ascending: false });
+            
+        if (stageErr) throw stageErr;
+
+        // جلب المشاريع لربط المعرفات بالأسماء الحقيقية
+        const { data: projects } = await supabase.from('projects').select('*');
+
+        // دمج البيانات برمجياً قبل إرسالها للواجهة لتجنب الـ null
+        const mappedStages = (stages || []).map(s => {
+            const matchProj = (projects || []).find(p => p.id === s.project_id);
+            return {
+                id: s.id,
+                stage_name: s.stage_name || s.name, // دعم التسميتين الاحتياطيتين
+                project_name: matchProj ? (matchProj.project_name || matchProj.name) : 'غير محدد',
+                supervisor_name: s.supervisor_name || 'مشرف المشروع',
+                details: s.details || '',
+                start_date: s.start_date || '',
+                end_date: s.end_date || '',
+                is_completed: s.is_completed === true
+            };
+        });
+
+        res.json(mappedStages);
+    } catch (err) {
+        console.error("❌ خطأ جلب مراحل المشروع:", err.message);
+        res.status(500).json([]);
+    }
+});
+
+// 2. حفظ وتدوين مرحلة تنفيذية جديدة بالاعتماد على الـ project_id الرقمي فقط
+app.post('/api/project-stages', async (req, res) => {
+    const item = req.body;
+    console.log("📥 البيانات المستلمة للمرحلة:", item);
+
+    // بناء السطر بناءً على الأعمدة القياسية الصافية لقاعدة بياناتك
+    const dbRow = {
+        stage_name: item.stage_name, 
+        project_id: Number(item.project_id), // الاعتماد على الرقم فقط وتجنب الاسم النصي المسبب للمشاكل
+        details: item.details,
+        start_date: item.start_date || null,
+        end_date: item.end_date || null,
+        is_completed: item.is_completed === true
+    };
+
+    if (item.id) dbRow.id = Number(item.id);
+
+    try {
+        const { data, error } = await supabase
+            .from('project_stages')
+            .insert([dbRow])
+            .select();
+            
+        if (error) {
+            console.error("❌ خطأ Supabase في جدول project_stages:", error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        console.log("✅ تم حفظ المرحلة بنجاح سحابياً!");
+        res.json({ success: true, data });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
