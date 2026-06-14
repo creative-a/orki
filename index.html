@@ -575,23 +575,39 @@
         });
     }
 
-    async function saveProjectRequestItem() {
-        const project = document.getElementById('req-project-select').value;
-        const material = document.getElementById('project-material').value.trim();
-        const details = document.getElementById('project-details').value.trim();
-        const qty = parseFloat(document.getElementById('project-qty').value);
-        const due_date = document.getElementById('project-duedate').value;
+async function saveProjectRequestItem() {
+    const project = document.getElementById('request-project-select').value; // سيأخذ رقم الـ ID للمشروع المعين للمشرف
+    const material = document.getElementById('request-material').value.trim();
+    const qty = document.getElementById('request-qty').value;
+    const details = document.getElementById('request-details').value.trim();
+    const due_date = document.getElementById('request-due').value;
 
-        if(!project || !material || isNaN(qty)) return alert("املاً حقول الطلب الرئيسية!");
+    if(!project || !material || !qty) return alert("المشروع، المادة، والكمية حقول إجبارية!");
 
+    try {
         const res = await fetch('/api/project-requests', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ project, material, details, qty, due_date })
+            body: JSON.stringify({ project, material, qty, details, due_date })
         });
-        if(res.ok) { alert("تم حفظ الطلب."); fetchSystemData(); }
+        
+        const result = await res.json();
+        
+        if(res.ok && result.success) { 
+            alert("تم إرسال طلب المواد بنجاح وسيتلقاه الأدمن."); 
+            document.getElementById('request-material').value = '';
+            document.getElementById('request-qty').value = '';
+            document.getElementById('request-details').value = '';
+            fetchSystemData(); 
+        } else {
+            alert(`❌ فشل السيرفر في الحفظ: ${result.error || 'خطأ داخلي'}`);
+        }
+    } catch (err) {
+        alert("❌ خطأ في الاتصال بالسيرفر!");
     }
-
+}
+    
+    
     async function saveProjectSupervisorAccount() {
         const name = document.getElementById('sup-fullname').value.trim();
         const phone_number = document.getElementById('sup-phone').value.trim();
