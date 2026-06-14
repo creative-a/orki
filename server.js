@@ -218,7 +218,7 @@ app.delete('/api/project-requests/:id', async (req, res) => {
 });
 
 // ==========================================
-// SECTOR 3: SUPERVISORS & STAGES (المشرفين والمراحل)
+// SECTOR 3: SUPERVISORS & STAGES
 // ==========================================
 
 app.get('/api/project-supervisors', async (req, res) => {
@@ -248,11 +248,11 @@ app.get('/api/project-supervisors', async (req, res) => {
 app.post('/api/project-supervisors', async (req, res) => {
     const { name, phone_number, project_id, username, password } = req.body;
     console.log("📥 بيانات المشرف المستلمة:", { name, phone_number, project_id, username });
-
+    
     let createdUserId = null;
-
+    
     try {
-        // 1. زرع الحساب في جدول المستخدمين (users)
+        // 1. إنشاء الحساب الأساسي في جدول المستخدمين أولاً (هنا يُخزن الـ username والـ password والـ role)
         const { data: userRow, error: userErr } = await supabase
             .from('users')
             .insert([{ username, password, role: 'supervisor', name }])
@@ -264,18 +264,16 @@ app.post('/api/project-supervisors', async (req, res) => {
             return res.status(400).json({ error: `خطأ في جدول المستخدمين: ${userErr.message}` });
         }
 
-        createdUserId = userRow.id;
+        createdUserId = userRow.id; // الإمساك بالـ ID المولد لربطه بالمشرف
 
-        // 2. بناء كائن المشرف النقي (بدون حقل project_name لتفادي خطأ الـ Schema Cache)
+        // 2. بناء كائن المشرف النقي والمطابق لأعمدة جدول project_supervisors لديك تماماً
+        // تم إزالة حقل username وحقل project_name نهائياً لمنع أي تضارب كاش
         const supervisorRow = { 
             user_id: createdUserId, 
             name: name, 
             phone_number: phone_number, 
             project_id: Number(project_id)
         };
-
-        // إذا كان جدولك يحتوي على حقل username للمشرف نقوم بإضافته، وإلا سيتجاهله الكود
-        if (username) supervisorRow.username = username;
 
         const { error: supErr } = await supabase
             .from('project_supervisors')
@@ -284,13 +282,13 @@ app.post('/api/project-supervisors', async (req, res) => {
         if (supErr) {
             console.error("❌ خطأ Supabase أثناء تدوين المشرف في جدول project_supervisors:", supErr);
             
-            // إجراء حمائي: حذف الحساب الذي أنشئ في جدول users لكي لا يعلق الحساب عند إعادة المحاولة
+            // إجراء حمائي: إذا فشل تدوين المشرف، نحذف الحساب من جدول users فوراً حتى لا يعلق الاسم
             await supabase.from('users').delete().eq('id', createdUserId);
             
-            throw supErr;
+            return res.status(500).json({ error: supErr.message });
         }
 
-        console.log("✅ تم إنشاء وتعيين المشرف بنجاح سحابياً!");
+        console.log("✅ نجاح تام: تم إنشاء الحساب وربطه كمشرف في الجدولين بنجاح!");
         res.json({ success: true });
 
     } catch (err) {
