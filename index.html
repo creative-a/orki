@@ -576,13 +576,22 @@
     }
 
 async function saveProjectRequestItem() {
-    const project = document.getElementById('request-project-select').value; // سيأخذ رقم الـ ID للمشروع المعين للمشرف
-    const material = document.getElementById('request-material').value.trim();
-    const qty = document.getElementById('request-qty').value;
-    const details = document.getElementById('request-details').value.trim();
-    const due_date = document.getElementById('request-due').value;
+    // جلب العناصر برفق مع التحقق من وجودها لتفادي خطأ الـ null
+    const elProject = document.getElementById('request-project-select');
+    const elMaterial = document.getElementById('request-material');
+    const elQty = document.getElementById('request-qty');
+    const elDetails = document.getElementById('request-details');
+    const elDue = document.getElementById('request-due');
 
-    if(!project || !material || !qty) return alert("المشروع، المادة، والكمية حقول إجبارية!");
+    // قراءة القيم بأمان، وإذا كان العنصر غير موجود في واجهة المشرف نضع نصاً فارغاً
+    const project = elProject ? elProject.value : '';
+    const material = elMaterial ? elMaterial.value.trim() : '';
+    const qty = elQty ? elQty.value : '';
+    const details = elDetails ? elDetails.value.trim() : '';
+    const due_date = elDue ? elDue.value : '';
+
+    // التحقق من الحقول الأساسية فقط لطلب المشرف
+    if(!material || !qty) return alert("يرجى ملء اسم المادة والكمية المطلوبة!");
 
     try {
         const res = await fetch('/api/project-requests', {
@@ -595,9 +604,9 @@ async function saveProjectRequestItem() {
         
         if(res.ok && result.success) { 
             alert("تم إرسال طلب المواد بنجاح وسيتلقاه الأدمن."); 
-            document.getElementById('request-material').value = '';
-            document.getElementById('request-qty').value = '';
-            document.getElementById('request-details').value = '';
+            if(elMaterial) elMaterial.value = '';
+            if(elQty) elQty.value = '';
+            if(elDetails) elDetails.value = '';
             fetchSystemData(); 
         } else {
             alert(`❌ فشل السيرفر في الحفظ: ${result.error || 'خطأ داخلي'}`);
@@ -606,6 +615,7 @@ async function saveProjectRequestItem() {
         alert("❌ خطأ في الاتصال بالسيرفر!");
     }
 }
+    
     
     
     async function saveProjectSupervisorAccount() {
