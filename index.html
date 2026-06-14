@@ -64,11 +64,11 @@
             <span class="user-badge" id="current-user-badge">الصلاحية: </span>
         </div>
         <div class="sector-tabs">
-            <button class="sector-btn" id="tab-materials" onclick="switchSector('materials')">🗂️ عروض المواد (Quotation)</button>
-            <button class="sector-btn" id="tab-requests" onclick="switchSector('requests')">🏗️ طلبات مواد المشاريع</button>
-            <button class="sector-btn" id="tab-projects" onclick="switchSector('projects')">🏢 المشاريع الأساسية (Admin)</button>
-            <button class="sector-btn" id="tab-stages" onclick="switchSector('stages')">📅 مراحل التنفيذ (Stages)</button>
-            <button class="sector-btn" id="tab-supervisors" onclick="switchSector('supervisors')">👥 إضافة مشرف مشروع (Admin)</button>
+            <button class="sector-btn" id="tab-materials" onclick="switchSector('materials')"> عروض المواد </button>
+            <button class="sector-btn" id="tab-requests" onclick="switchSector('requests')"> طلبات مواد المشاريع</button>
+            <button class="sector-btn" id="tab-projects" onclick="switchSector('projects')"> المشاريع الأساسية </button>
+            <button class="sector-btn" id="tab-stages" onclick="switchSector('stages')"> مراحل التنفيذ </button>
+            <button class="sector-btn" id="tab-supervisors" onclick="switchSector('supervisors')"> إضافة مشرف مشروع </button>
         </div>
         <div>
             <span class="sync-status" id="sync-text">🔄 متصل سحابياً</span>
@@ -122,7 +122,7 @@
         </div>
 
         <div id="sector-requests" class="sector-section">
-            <h2>🏗️ إدارة طلبات مواد المشاريع (طلب مواد)</h2>
+            <h2> إدارة طلبات مواد المشاريع (طلب مواد)</h2>
             <div class="section-box" id="request-form-container">
                 <h3>➕ إضافة طلب مشروع جديد:</h3>
                 <div class="form-group">
@@ -148,12 +148,12 @@
         </div>
 
         <div id="sector-projects" class="sector-section">
-            <h2>🏢 لوحة إضافة وإدارة المشاريع الكبرى (Admin)</h2>
+            <h2> إضافة المشاريع </h2>
             <div class="section-box">
-                <h3>➕ إضافة مشروع جديد كلياً بالنظام:</h3>
+                <h3> إضافة مشروع جديد:</h3>
                 <div class="form-group">
                     <input type="text" id="new-project-name" placeholder="اسم المشروع">
-                    <input type="text" id="new-project-region" placeholder="المنطقة (تُدخل مرة واحدة)">
+                    <input type="text" id="new-project-region" placeholder="المنطقة">
                     <input type="date" id="new-project-start">
                     <button class="btn-add" onclick="saveNewBaseProject()">تثبيت المشروع</button>
                 </div>
@@ -167,9 +167,9 @@
         </div>
 
         <div id="sector-stages" class="sector-section">
-            <h2>📅 متابعة وحفظ مراحل المشروع (Project Stages)</h2>
+            <h2> مراحل المشروع </h2>
             <div class="section-box" id="stage-form-container">
-                <h3>➕ إضافة تدوين مرحلة تنفيذية جديدة للمشروع المسند:</h3>
+                <h3>➕  مرحلة جديدة:</h3>
                 <div class="form-group">
                     <select id="stage-project-select"><option value="">اختر المشروع...</option></select>
                     <input type="text" id="stage-name" placeholder="اسم المرحلة (حفر، تأسيس، صب، تشطيبات)">
@@ -188,9 +188,9 @@
         </div>
 
         <div id="sector-supervisors" class="sector-section">
-            <h2>👥 لوحة إنشاء مشرفي المشاريع وإسنادهم (Admin Only)</h2>
+            <h2>👥 مشرفي المشاريع </h2>
             <div class="section-box">
-                <h3>➕ إضافة مشرف مشروع جديد وإسناده لمشروعه الحصري:</h3>
+                <h3>➕ إضافة مشرف مشروع جديد:</h3>
                 <div class="form-group">
                     <input type="text" id="sup-fullname" placeholder="اسم مشرف المشروع الكامل">
                     <input type="text" id="sup-phone" placeholder="رقم الهاتف للمشرف">
@@ -608,7 +608,30 @@
         });
         if(res.ok) { alert("تم الحفظ بنجاح!"); fetchSystemData(); }
     }
+async function saveProjectStageItem() {
+    const project_id = document.getElementById('stage-project-select').value; // يأخذ الرقم المعرف للمشروع
+    const stage_name = document.getElementById('stage-name').value.trim();
+    const details = document.getElementById('stage-details').value.trim();
+    const start_date = document.getElementById('stage-start').value;
+    const end_date = document.getElementById('stage-end').value;
 
+    if(!project_id || !stage_name) return alert("اختر المشروع واسم المرحلة إجبارياً!");
+
+    const res = await fetch('/api/project-stages', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ project_id, stage_name, details, start_date, end_date })
+    });
+    
+    if(res.ok) { 
+        alert("تم حفظ وتدوين المرحلة بنجاح سحابياً."); 
+        document.getElementById('stage-name').value = '';
+        document.getElementById('stage-details').value = '';
+        fetchSystemData(); 
+    } else {
+        alert("فشل إرسال المرحلة، تحقق من ترامينال السيرفر.");
+    }
+}
     function exportMaterialsToExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("materials-table")), "Materials.xlsx"); }
     function exportRequestsToExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("projects-table")), "Requests.xlsx"); }
 </script>
