@@ -223,15 +223,12 @@ app.delete('/api/project-requests/:id', async (req, res) => {
 
 app.get('/api/project-supervisors', async (req, res) => {
     try {
-        // جلب المشرفين
         const { data: supervisors, error: supErr } = await supabase.from('project_supervisors').select('*');
         if (supErr) throw supErr;
 
-        // جلب المشاريع للمطابقة الحية
         const { data: projects, error: projErr } = await supabase.from('projects').select('*');
         if (projErr) throw projErr;
 
-        // دمج البيانات لكي يظهر اسم المشروع في الجدول في الـ index.html
         const mappedSupervisors = (supervisors || []).map(s => {
             const matchProj = (projects || []).find(p => p.id === s.project_id);
             return {
@@ -240,9 +237,11 @@ app.get('/api/project-supervisors', async (req, res) => {
             };
         });
 
-        res.json(mappedData || mappedSupervisors);
+        // تم التصحيح هنا لإرسال المصفوفة المحولة مباشرة دون تضارب تسميات
+        res.json(mappedSupervisors);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("❌ خطأ جلب المشرفين بالسيرفر:", err.message);
+        res.status(500).json([]); // إرجاع مصفوفة فارغة في حال حدوث خطأ لمنع انهيار الواجهة
     }
 });
 
