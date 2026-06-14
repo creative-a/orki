@@ -151,39 +151,81 @@ app.post('/api/projects', async (req, res) => {
     }
 });
 
-// جلب طلبات مواد المشاريع
+// 1. جلب طلبات المواد مع دمج اسم المشروع ديناميكياً للعرض بالشاشة
 app.get('/api/project-requests', async (req, res) => {
     try {
-        const { data, error } = await supabase
+        const { data: requests, error: reqErr } = await supabase
             .from('project_requests')
             .select('*')
             .order('id', { ascending: false });
             
-        if (error) throw error;
-        res.json(data || []);
+        if (reqErr) throw reqErr;
+
+        // جلب المشاريع لترجمة المعرف الرقمي إلى اسم نصي يظهر للمشرف
+        const { data: projects } = await supabase.from('projects').select('*');
+
+        const mappedRequests = (requests || []).map(r => {
+            // البحث عن المشروع المطابق سواء كان الربط بـ project_id أو الحقل القديم project
+            const projectId = r.project_id || r.project;
+            const matchProj = (projects || []).find(p => p.id === Number(projectId));
+            
+            return {
+                id: r.id,
+                project: matchProj ? (matchProj.project_name || matchProj.name) : (r.project || 'غير محدد'),
+                material: r.material || '',
+                details: r.details || '',
+                qty: r.qty || 0,
+                due_date: r.due_date || '',
+                is_completed: r.is_completed === true
+            };
+        });
+
+        res.json(mappedRequests);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("❌ خطأ جلب طلبات المواد:", err.message);
+        res.status(500).json([]);
     }
 });
 
-// إضافة طلب مشروع جديد
+// 2. إضافة طلب مواد جديد بالاعتماد على الهيكلية الرقمية الصحيحة
 app.post('/api/project-requests', async (req, res) => {
     const item = req.body;
+    console.log("📥 البيانات المستلمة لطلب المواد:", item);
+
+    // بناء السطر ليتوافق مع حقول الداتابيس الحقيقية لديك
     const dbRow = {
-        project: item.project,
         material: item.material,
         details: item.details,
         qty: Number(item.qty),
         due_date: item.due_date || null,
         is_completed: item.is_completed === true
     };
+
+    // فحص ذكي: إذا كانت الواجهة ترسل ID المشروع كرقم نضعه في الحقل الصحيح، وإلا نضعه كقيمة نصية احتياطية
+    if (!isNaN(item.project)) {
+        dbRow.project_id = Number(item.project); 
+        dbRow.project = Number(item.project); // للأمان لو كان اسم العمود قديم
+    } else {
+        dbRow.project = item.project; // إذا كان جدولك يستقبل نصاً (حالة احتياطية)
+    }
+
     if (item.id) dbRow.id = Number(item.id);
 
     try {
-        const { data, error } = await supabase.from('project_requests').upsert([dbRow]).select();
-        if (error) throw error;
+        const { data, error } = await supabase
+            .from('project_requests')
+            .insert([dbRow])
+            .select();
+            
+        if (error) {
+            console.error("❌ خطأ Supabase في جدول project_requests:", error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        console.log("✅ تم حفظ طلب المواد بنجاح في السحاب!");
         res.json({ success: true, data });
     } catch (err) {
+        console.error("💥 تحطم مسار طلبات المواد:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
