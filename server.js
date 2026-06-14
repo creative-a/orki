@@ -232,26 +232,61 @@ app.get('/api/project-supervisors', async (req, res) => {
 
 app.post('/api/project-supervisors', async (req, res) => {
     const { name, phone_number, project_id, username, password } = req.body;
+    console.log("📥 بيانات المشرف المستلمة:", { name, phone_number, project_id, username });
+
     try {
+        // 1. جلب اسم المشروع أولاً لإدراجه مع المشرف (إذا كان جدولك يتطلب اسم المشروع)
+        const { data: projData } = await supabase
+            .from('projects')
+            .select('project_name')
+            .eq('id', project_id)
+            .single();
+
+        const projectName = projData ? projData.project_name : '---';
+
+        // 2. زرع الحساب في جدول المستخدمين (users)
         const { data: userRow, error: userErr } = await supabase
             .from('users')
             .insert([{ username, password, role: 'supervisor', name }])
             .select()
             .single();
 
-        if (userErr) throw userErr;
+        if (userErr) {
+            console.error("❌ خطأ Supabase أثناء إنشاء الحساب في جدول users:", userErr);
+            throw userErr;
+        }
+
+        // 3. بناء كائن المشرف ومطابقته لأعمدة قاعدة البيانات لديك
+        const supervisorRow = { 
+            user_id: userRow.id, 
+            name, 
+            phone_number, 
+            project_id: Number(project_id)
+        };
+
+        // ملاحظة: إذا كان جدول project_supervisors يحتوي على عمود لاسم المشروع أو اسم المستخدم، نقوم بملئه
+        // قمنا بحمايتها بشرط فحص وجودها في قاعدة بياناتك لاحقاً
+        if (projectName) supervisorRow.project_name = projectName;
 
         const { error: supErr } = await supabase
             .from('project_supervisors')
-            .insert([{ user_id: userRow.id, name, phone_number, project_id, username }]);
+            .insert([supervisorRow]);
 
-        if (supErr) throw supErr;
+        if (supErr) {
+            console.error("❌ خطأ Supabase أثناء تدوين المشرف في جدول project_supervisors:", supErr);
+            throw supErr;
+        }
 
+        console.SUCC = true;
+        console.log("✅ تم إنشاء وتعيين المشرف بنجاح سحابياً!");
         res.json({ success: true });
+
     } catch (err) {
+        console.error("💥 التحطم النهائي للمسار بسبب:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
+
 
 app.get('/api/project-stages', async (req, res) => {
     try {
