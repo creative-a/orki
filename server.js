@@ -220,11 +220,27 @@ app.delete('/api/project-requests/:id', async (req, res) => {
 // ==========================================
 // SECTOR 3: SUPERVISORS & STAGES (المشرفين والمراحل)
 // ==========================================
+
 app.get('/api/project-supervisors', async (req, res) => {
     try {
-        const { data, error } = await supabase.from('project_supervisors').select('*');
-        if (error) throw error;
-        res.json(data || []);
+        // جلب المشرفين
+        const { data: supervisors, error: supErr } = await supabase.from('project_supervisors').select('*');
+        if (supErr) throw supErr;
+
+        // جلب المشاريع للمطابقة الحية
+        const { data: projects, error: projErr } = await supabase.from('projects').select('*');
+        if (projErr) throw projErr;
+
+        // دمج البيانات لكي يظهر اسم المشروع في الجدول في الـ index.html
+        const mappedSupervisors = (supervisors || []).map(s => {
+            const matchProj = (projects || []).find(p => p.id === s.project_id);
+            return {
+                ...s,
+                project_name: matchProj ? (matchProj.project_name || matchProj.name) : 'غير محدد'
+            };
+        });
+
+        res.json(mappedData || mappedSupervisors);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -234,17 +250,10 @@ app.post('/api/project-supervisors', async (req, res) => {
     const { name, phone_number, project_id, username, password } = req.body;
     console.log("📥 بيانات المشرف المستلمة:", { name, phone_number, project_id, username });
 
+    let createdUserId = null;
+
     try {
-        // 1. جلب اسم المشروع أولاً لإدراجه مع المشرف (إذا كان جدولك يتطلب اسم المشروع)
-        const { data: projData } = await supabase
-            .from('projects')
-            .select('project_name')
-            .eq('id', project_id)
-            .single();
-
-        const projectName = projData ? projData.project_name : '---';
-
-        // 2. زرع الحساب في جدول المستخدمين (users)
+        // 1. زرع الحساب في جدول المستخدمين (users)
         const { data: userRow, error: userErr } = await supabase
             .from('users')
             .insert([{ username, password, role: 'supervisor', name }])
@@ -253,20 +262,21 @@ app.post('/api/project-supervisors', async (req, res) => {
 
         if (userErr) {
             console.error("❌ خطأ Supabase أثناء إنشاء الحساب في جدول users:", userErr);
-            throw userErr;
+            return res.status(400).json({ error: `خطأ في جدول المستخدمين: ${userErr.message}` });
         }
 
-        // 3. بناء كائن المشرف ومطابقته لأعمدة قاعدة البيانات لديك
+        createdUserId = userRow.id;
+
+        // 2. بناء كائن المشرف النقي (بدون حقل project_name لتفادي خطأ الـ Schema Cache)
         const supervisorRow = { 
-            user_id: userRow.id, 
-            name, 
-            phone_number, 
+            user_id: createdUserId, 
+            name: name, 
+            phone_number: phone_number, 
             project_id: Number(project_id)
         };
 
-        // ملاحظة: إذا كان جدول project_supervisors يحتوي على عمود لاسم المشروع أو اسم المستخدم، نقوم بملئه
-        // قمنا بحمايتها بشرط فحص وجودها في قاعدة بياناتك لاحقاً
-        if (projectName) supervisorRow.project_name = projectName;
+        // إذا كان جدولك يحتوي على حقل username للمشرف نقوم بإضافته، وإلا سيتجاهله الكود
+        if (username) supervisorRow.username = username;
 
         const { error: supErr } = await supabase
             .from('project_supervisors')
@@ -274,10 +284,13 @@ app.post('/api/project-supervisors', async (req, res) => {
 
         if (supErr) {
             console.error("❌ خطأ Supabase أثناء تدوين المشرف في جدول project_supervisors:", supErr);
+            
+            // إجراء حمائي: حذف الحساب الذي أنشئ في جدول users لكي لا يعلق الحساب عند إعادة المحاولة
+            await supabase.from('users').delete().eq('id', createdUserId);
+            
             throw supErr;
         }
 
-        console.SUCC = true;
         console.log("✅ تم إنشاء وتعيين المشرف بنجاح سحابياً!");
         res.json({ success: true });
 
@@ -287,7 +300,7 @@ app.post('/api/project-supervisors', async (req, res) => {
     }
 });
 
-
+//////// STAGES
 app.get('/api/project-stages', async (req, res) => {
     try {
         const { data, error } = await supabase.from('project_stages').select('*').order('id', { ascending: false });
