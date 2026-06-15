@@ -132,8 +132,7 @@
                     <input type="text" id="project-details" placeholder="التفصيل / المواصفات">
                     <input type="number" id="project-qty" placeholder="الكمية">
                     <input type="date" id="project-duedate">
-                    <button class="btn-add" onclick="saveProjectRequestItem()">حفظ طلب المشروع بالسحاب</button>
-                </div>
+                    <button onclick="saveProjectRequestItem(event)">إرسال الطلب</button>                </div>
             </div>
             <div class="action-bar">
                 <input type="text" id="search-project" placeholder="ابحث باسم المشروع...">
@@ -575,70 +574,76 @@
         });
     }
 
-    async function saveProjectRequestItem() {
-        // 1. محاولة قراءة الحقول بمعرفات الأدمن القياسية
-        let material = document.getElementById('request-material') ? document.getElementById('request-material').value.trim() : '';
-        let qty = document.getElementById('request-qty') ? document.getElementById('request-qty').value : '';
-        let details = document.getElementById('request-details') ? document.getElementById('request-details').value.trim() : '';
-        let project = document.getElementById('request-project-select') ? document.getElementById('request-project-select').value : '';
-        let due_date = document.getElementById('request-due') ? document.getElementById('request-due').value : '';
+async function saveProjectRequestItem(event) {
+    // منع السلوك الافتراضي إذا كان الزر داخل Form
+    if (event && event.preventDefault) event.preventDefault();
+
+    // 1. تحديد الزر الذي تم الضغط عليه حالياً
+    const btn = event ? event.target : document.activeElement;
     
-        // 2. خطوة الإنقاذ: إذا كانت الحقول فارغة، نقرأ من مسميات واجهة المشرف المحتملة في كودك
-        if (!material) {
-            // ابحث في كود الـ HTML الخاص بك عن المعرف الحقيقي لحقل المادة للمشرف واستبدله هنا إذا كان مختلفاً
-            const supMaterialEl = document.getElementById('sup-material') || document.getElementById('supervisor-material') || document.getElementById('mat-name');
-            if (supMaterialEl) material = supMaterialEl.value.trim();
-        }
-        
-        if (!qty) {
-            const supQtyEl = document.getElementById('sup-qty') || document.getElementById('supervisor-qty') || document.getElementById('mat-qty');
-            if (supQtyEl) qty = supQtyEl.value;
-        }
-    
-        if (!details) {
-            const supDetailsEl = document.getElementById('sup-details') || document.getElementById('supervisor-details');
-            if (supDetailsEl) details = supDetailsEl.value.trim();
-        }
-    
-        // 3. طباعة فورية في الكونسول لمعاينة حية أثناء الضغط
-        console.log("📊 البيانات الممسوحة من الشاشة حالياً:", { project, material, qty, details, due_date });
-    
-        // 4. التحقق الصارم قبل الشحن
-        if (!material || !qty) {
-            // سنطبع لك هنا أسماء الـ IDs المتوفرة على الشاشة لتسهيل معرفتها
-            const allInputs = Array.from(document.querySelectorAll('input, textarea')).map(el => el.id || el.className || el.tagName);
-            console.log("📌 العناصر المتوفرة في الصفحة حالياً هي:", allInputs);
-            
-            return alert("⚠️ يرجى ملء اسم المادة والكمية المطلوبة!\n\nتنبيه: الكود لم يجد حقول الإدخال. تأكد من مطابقة الـ ID في الـ HTML مع الكود.");
-        }
-    
-        try {
-            const res = await fetch('/api/project-requests', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ project, material, qty, details, due_date })
-            });
-            
-            const result = await res.json();
-            
-            if (res.ok && result.success) { 
-                alert("✅ تم إرسال طلب المواد بنجاح وسيتلقاه الأدمن."); 
-                // تنظيف الحقول بعد النجاح
-                if(document.getElementById('request-material')) document.getElementById('request-material').value = '';
-                if(document.getElementById('request-qty')) document.getElementById('request-qty').value = '';
-                const supMaterialEl = document.getElementById('sup-material') || document.getElementById('supervisor-material');
-                if(supMaterialEl) supMaterialEl.value = '';
-                const supQtyEl = document.getElementById('sup-qty') || document.getElementById('supervisor-qty');
-                if(supQtyEl) supQtyEl.value = '';
-                
-                fetchSystemData(); 
-            } else {
-                alert(`❌ فشل السيرفر في الحفظ: ${result.error || 'خطأ داخلي'}`);
-            }
-        } catch (err) {
-            alert("❌ خطأ في الاتصال بالسيرفر!");
-        }
+    // 2. العثور على أقرب حاوية تحيط بالزِر والحقول (الـ Form أو الـ Div المشترك)
+    const container = btn ? btn.closest('div, form, section') : null;
+
+    let material = '';
+    let qty = '';
+    let details = '';
+    let project = '';
+    let due_date = '';
+
+    if (container) {
+        // 3. التقاط الحقول الموجودة داخل نفس الصندوق القريب من الزر حصراً!
+        const inputMaterial = container.querySelector('input[type="text"], [id*="material"]');
+        const inputQty = container.querySelector('input[type="number"], [id*="qty"]');
+        const inputDetails = container.querySelector('textarea, [id*="detail"]');
+        const selectProject = container.querySelector('select, [id*="project"]');
+        const inputDue = container.querySelector('input[type="date"], [id*="due"]');
+
+        if (inputMaterial) material = inputMaterial.value.trim();
+        if (inputQty) qty = inputQty.value;
+        if (inputDetails) details = inputDetails.value.trim();
+        if (selectProject) project = selectProject.value;
+        if (inputDue) due_date = inputDue.value;
     }
+
+    // 4. خطوة احتياطية أخيرة لو فشل الالتقاط الموضعي (البحث التقليدي)
+    if (!material || !qty) {
+        material = document.getElementById('request-material') ? document.getElementById('request-material').value.trim() : material;
+        qty = document.getElementById('request-qty') ? document.getElementById('request-qty').value : qty;
+    }
+
+    // التحقق الفوري
+    if (!material || !qty) {
+        return alert("⚠️ يرجى ملء اسم المادة والكمية المطلوبة!\nالنظام لم يستطع التقاط النص من الحقول المحيطة بالزر.");
+    }
+
+    try {
+        const res = await fetch('/api/project-requests', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ project, material, qty, details, due_date })
+        });
+        
+        const result = await res.json();
+        
+        if (res.ok && result.success) { 
+            alert("✅ تم إرسال طلب المواد بنجاح وسيتلقاه الأدمن."); 
+            // تنظيف الحقول النشطة فقط
+            if (container) {
+                const inputMaterial = container.querySelector('input[type="text"]');
+                const inputQty = container.querySelector('input[type="number"]');
+                const inputDetails = container.querySelector('textarea');
+                if (inputMaterial) inputMaterial.value = '';
+                if (inputQty) inputQty.value = '';
+                if (inputDetails) inputDetails.value = '';
+            }
+            fetchSystemData(); 
+        } else {
+            alert(`❌ فشل السيرفر في الحفظ: ${result.error || 'خطأ داخلي'}`);
+        }
+    } catch (err) {
+        alert("❌ خطأ في الاتصال بالسيرفر!");
+    }
+}
     
     
     
