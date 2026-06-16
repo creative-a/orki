@@ -36,7 +36,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ==========================================
-// SECTOR 1: MATERIALS APIS (عروض المواد)
+// SECTOR 1: MATERIALS APIS (quotation)
 // ==========================================
 // 1. مسار الجلب القديم المطابق للواجهة مع جلب البيانات من الجدول السحابي الصحيح وترتيبها
 app.get('/api/materials', async (req, res) => {
@@ -100,6 +100,31 @@ app.post('/api/materials', async (req, res) => {
         res.json({ success: true, data });
     } catch (err) {
         console.error("💥 تحطم مسار حفظ المواد:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// مسار الحذف النهائي لعروض المواد - مطابق تماماً لطلب المتصفح
+app.delete('/api/materials/:id', async (req, res) => {
+    const { id } = req.params;
+    console.log(`🗑️ طلب حذف مادة يحمل المعرف الرقمي: ${id}`);
+
+    try {
+        // الحذف المباشر والصريح من جدول قاعدة البيانات السحابية الحقيقي
+        const { data, error } = await supabase
+            .from('quotation_items') // جدولك الحقيقي في سوبابيس
+            .delete()
+            .eq('id', Number(id)); // مطابقة الرقم بدقة
+
+        if (error) {
+            console.error("❌ خطأ Supabase أثناء الحذف:", error.message);
+            return res.status(500).json({ error: error.message });
+        }
+
+        console.log(`✅ تم مسح المادة رقم (${id}) بنجاح من السحاب!`);
+        res.json({ success: true, message: "تم الحذف بنجاح" });
+    } catch (err) {
+        console.error("💥 تحطم مسار الحذف تماماً:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
