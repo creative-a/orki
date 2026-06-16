@@ -192,7 +192,7 @@ app.post('/api/project-requests', async (req, res) => {
     const item = req.body;
     console.log("📥 البيانات المستلمة لطلب المواد:", item);
 
-    // بناء السطر ليتوافق مع حقول الداتابيس الحقيقية لديك
+    // 1. بناء السطر الأساسي للبيانات
     const dbRow = {
         material: item.material,
         details: item.details,
@@ -201,15 +201,23 @@ app.post('/api/project-requests', async (req, res) => {
         is_completed: item.is_completed === true
     };
 
-    // فحص ذكي: إذا كانت الواجهة ترسل ID المشروع كرقم نضعه في الحقل الصحيح، وإلا نضعه كقيمة نصية احتياطية
-    if (!isNaN(item.project)) {
-        dbRow.project_id = Number(item.project); 
-        dbRow.project = Number(item.project); // للأمان لو كان اسم العمود قديم
-    } else {
-        dbRow.project = item.project; // إذا كان جدولك يستقبل نصاً (حالة احتياطية)
+    // 2. ربط المشروع بالمعرف الرقمي الصحيح
+    if (item.project && !isNaN(item.project)) {
+        dbRow.project_id = Number(item.project);
+        dbRow.project = Number(item.project); 
+    } else if (item.project) {
+        dbRow.project = item.project; 
     }
 
-    if (item.id) dbRow.id = Number(item.id);
+    // 3. الحل الذكي لحماية حقل الـ ID من قيد الـ Not-Null
+    if (item.id && Number(item.id) !== 0) {
+        // إذا كان الطلب قادماً بـ ID حقيقي (عملية تعديل أو تحديث لسطر قائم)
+        dbRow.id = Number(item.id);
+    } else {
+        // إذا كان طلباً جديداً كلياً، نترك سوبابيس تولد الرقم تلقائياً
+        // نقوم بحذف الخاصية تماماً من الكائن لكي لا تُرسل كـ null وتسبب انهياراً
+        delete dbRow.id;
+    }
 
     try {
         const { data, error } = await supabase
@@ -218,18 +226,32 @@ app.post('/api/project-requests', async (req, res) => {
             .select();
             
         if (error) {
-            console.error("❌ خطأ Supabase في جدول project_requests:", error);
+            console.error("❌ خطأ Supabase المباشر في جدول project_requests:", error);
+            
+            // خطة إنقاذ احتياطية: إذا كان الجدول لا يولد أرقاماً تلقائية ويطلب ID صريح
+            if (error.message.includes('violates not-null constraint') && error.message.includes('"id"')) {
+                console.log("⚠️ الجدول يرفض التوليد التلقائي، سنقوم بتوليد معرف عشوائي فريد وسطي...");
+                
+                // توليد رقم فريد عشوائي كـ ID احتياطي (بين 10000 و 99999)
+                dbRow.id = Math.floor(10000 + Math.random() * 90000);
+                
+                const retryResult = await supabase.from('project_requests').insert([dbRow]).select();
+                if (retryResult.error) throw retryResult.error;
+                
+                console.log("✅ نجحت خطة الإنقاذ وتم الحفظ بالـ ID المولد يدوياً!");
+                return res.json({ success: true, data: retryResult.data });
+            }
+            
             return res.status(500).json({ error: error.message });
         }
 
         console.log("✅ تم حفظ طلب المواد بنجاح في السحاب!");
         res.json({ success: true, data });
     } catch (err) {
-        console.error("💥 تحطم مسار طلبات المواد:", err.message);
+        console.error("💥 تحطم مسار طلبات المواد كلياً:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
-
 // تحديث حالة إنجاز الطلب
 app.put('/api/project-requests/:id/status', async (req, res) => {
     const { id } = req.params;
