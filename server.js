@@ -38,18 +38,18 @@ app.post('/api/login', async (req, res) => {
 // ==========================================
 // SECTOR 1: MATERIALS APIS (عروض المواد)
 // ==========================================
-app.get('/api/materials', async (req, res) => {
+app.get('/api/quotation_items', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('quotation_items')
             .select('*')
-            .order('id', { ascending: false });
-            
+            .order('created_at', { ascending: false }); // ترتيب تنازلي: الأحدث يظهر في أول السطر دائماً
+
         if (error) throw error;
-        res.json(data || []);
+        res.json(data);
     } catch (err) {
-        console.error("❌ خطأ جلب المواد:", err.message);
-        res.status(500).json({ error: err.message });
+        console.error("❌ خطأ جلب عروض المواد:", err.message);
+        res.status(500).json([]);
     }
 });
 
