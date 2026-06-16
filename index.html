@@ -267,28 +267,41 @@
 
     async function fetchSystemData() {
         try {
+            // 1. جلب المشاريع
             const resProj = await fetch('/api/projects');
-            tableProjects = await resProj.json();
-
-            const resReq = await fetch('/api/project-requests'); // مسار مفرد صحيح وموحد
-            projectsItems = await resReq.json();
-
-            const resMat = await fetch('/api/materials');
-            materialsItems = await resMat.json();
-
+            if (resProj.ok) tableProjects = await resProj.json();
+    
+            // 2. جلب طلبات المواد (تُخزن في مصفوفتك الأصلية projectsItems)
+            const resReq = await fetch('/api/project-requests');
+            if (resReq.ok) projectsItems = await resReq.json();
+    
+            // 3. جلب عروض المواد بالمسار الموحد الصحيح (تُخزن في مصفوفتك الأصلية materialsItems)
+            const resMat = await fetch('/api/quotation_items');
+            
+            // حماية ذكية لضمان استقبال JSON وليس صفحة HTML مكسورة
+            const contentType = resMat.headers.get("content-type");
+            if (resMat.ok && contentType && contentType.includes("application/json")) {
+                materialsItems = await resMat.json();
+            } else {
+                console.warn("⚠️ السيرفر لم يرد بـ JSON لعروض المواد، تم تصفير المصفوفة مؤقتاً.");
+                materialsItems = [];
+            }
+    
+            // 4. جلب المشرفين ومراحل المشاريع
             const resSup = await fetch('/api/project-supervisors');
-            tableSupervisors = await resSup.json();
-
+            if (resSup.ok) tableSupervisors = await resSup.json();
+    
             const resStg = await fetch('/api/project-stages');
-            tableStages = await resStg.json();
-
-            updateSelectDropdowns();
-            renderSystemTables();
+            if (resStg.ok) tableStages = await resStg.json();
+    
+            // 5. تشغيل دوال التحديث والرسم الأصلية الخاصة بنظامك لتظهر البيانات بالشاشات
+            if (typeof updateSelectDropdowns === 'function') updateSelectDropdowns();
+            if (typeof renderSystemTables === 'function') renderSystemTables();
+    
         } catch (err) {
-            console.error("خطأ جلب البيانات السحابية:", err);
+            console.error("❌ خطأ جلب البيانات السحابية:", err);
         }
     }
-
     function applyRolePermissions() {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('main-system-screen').style.display = 'block';
