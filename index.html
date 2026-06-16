@@ -407,11 +407,11 @@ function renderMaterialsTable() {
             <td>${item.unit || 'قطعة'}</td>
             <td><strong style="color: #2980b9;">${price}</strong></td> <td>${item.currency || 'دولار'}</td>
             <td><strong style="color: #27ae60;">${total}</strong></td> <td>${item.notes || '---'}</td>
-            <td>
+                <td>
                 <button class="btn btn-sm btn-warning" onclick="editMaterialItem(${item.id})">تعديل</button>
-                <button class="btn btn-sm btn-secondary" onclick="archiveMaterialItem(${item.id})">أرشفة</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteMaterialItem(${item.id})">حذف</button>
-            </td>
+                <button class="btn btn-sm btn-secondary" onclick="archiveMaterialItemFromDb(${item.id})">أرشفة</button> 
+                <button class="btn btn-sm btn-danger" onclick="deleteMaterialItemFromDb(${item.id})">حذف</button>
+                </td>
         </tr>`;
     });
 }
