@@ -376,38 +376,46 @@ function renderMaterialsTable() {
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    // جلب نص البحث المكتوب في خانة البحث وتحويله لحروف صغيرة
     const searchInput = document.getElementById('search-material-input');
     const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
-    // التصحيح: القراءة من المصفوفة الحقيقية للنظام (materialsItems) بدلاً من الاسم الخاطئ السابق
+    // التصفية باستخدام المصفوفة الأصلية المستقرة لنظامك
     const filtered = materialsItems.filter(item => {
         const matName = (item.name || '').toLowerCase();
         const matSource = (item.source || '').toLowerCase();
         const matCategory = (item.category || '').toLowerCase();
-        
-        // البحث يطابق اسم المادة، أو اسم المصدر/المورد، أو القسم
         return matName.includes(query) || matSource.includes(query) || matCategory.includes(query);
     });
 
-    // رسم الجدول بناءً على البيانات المصفاة
     filtered.forEach(item => {
+        // حساب الإجمالي تلقائياً (الكمية × السعر الإفرادي)
+        const qty = parseFloat(item.qty) || 0;
+        const price = parseFloat(item.price) || 0;
+        const total = (qty * price).toFixed(2);
+
+        // تنسيق التاريخ ليظهر بشكل مقروء
+        const dateStr = item.created_at ? new Date(item.created_at).toLocaleDateString('ar-EG') : '---';
+
+        // رسم السطر متوافق 100% مع ترتيب <thead> الجديد الخاص بك
         tbody.innerHTML += `<tr>
-            <td>${item.category || '---'}</td>
+            <td><span class="badge bg-secondary">${dateStr}</span></td> <td>${item.category || '---'}</td>
             <td><b>${item.name || '---'}</b></td>
             <td>${item.details || '---'}</td>
             <td><span class="badge bg-info">${item.source || '---'}</span></td>
             <td>${item.phone || '---'}</td>
-            <td>${item.qty} ${item.unit || 'قطعة'}</td>
-            <td><strong style="color: #27ae60;">${item.price} ${item.currency || 'دولار'}</strong></td>
-            <td>${item.notes || '---'}</td>
+            <td>${item.address || '---'}</td>
+            <td>${qty}</td>
+            <td>${item.unit || 'قطعة'}</td>
+            <td><strong style="color: #2980b9;">${price}</strong></td> <td>${item.currency || 'دولار'}</td>
+            <td><strong style="color: #27ae60;">${total}</strong></td> <td>${item.notes || '---'}</td>
             <td>
-                <button class="btn-edit" onclick="editMaterialItem(${item.id})">تعديل</button>
+                <button class="btn btn-sm btn-warning" onclick="editMaterialItem(${item.id})">تعديل</button>
+                <button class="btn btn-sm btn-secondary" onclick="archiveMaterialItem(${item.id})">أرشفة</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteMaterialItem(${item.id})">حذف</button>
             </td>
         </tr>`;
     });
 }
-
     function editMaterialItemInForm(id) {
         const match = materialsItems.find(i => i.id == id);
         if(match) {
