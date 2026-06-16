@@ -416,39 +416,62 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }
-
     async function saveMaterialItem() {
-        const id = document.getElementById('item-id').value;
-        const created_at = document.getElementById('item-created-at').value;
-        const category = document.getElementById('item-category').value;
-        const name = document.getElementById('item-name').value.trim();
-        const details = document.getElementById('item-details').value;
-        const source = document.getElementById('item-source').value;
-        const phone = document.getElementById('item-phone').value;
-        const address = document.getElementById('item-address').value; // جلب العنوان
-        const qty = parseFloat(document.getElementById('item-qty').value);
-        const price = parseFloat(document.getElementById('item-price').value);
-        const currency = document.getElementById('item-currency').value;
-        const notes = document.getElementById('item-notes').value; // جلب الملاحظات
+    const id = document.getElementById('item-id').value;
+    const created_at = document.getElementById('item-created-at').value;
+    const category = document.getElementById('item-category').value;
+    const name = document.getElementById('item-name').value.trim();
+    const details = document.getElementById('item-details').value;
+    const source = document.getElementById('item-source').value;
+    const phone = document.getElementById('item-phone').value;
+    const address = document.getElementById('item-address').value; 
+    const qty = parseFloat(document.getElementById('item-qty').value);
+    const price = parseFloat(document.getElementById('item-price').value);
+    const currency = document.getElementById('item-currency').value;
+    const notes = document.getElementById('item-notes').value; 
 
-        if(!category || !name || isNaN(qty) || isNaN(price)) return alert("املاً حقول المادة الأساسية!");
+    if(!category || !name || isNaN(qty) || isNaN(price)) {
+        return alert("املاً حقول المادة الأساسية!");
+    }
 
-        const payload = { category, name, details, source, phone, address, qty, price, currency, notes };
-        if(id) payload.id = id;
-        if(created_at) payload.created_at = created_at;
+    // بناء البيانات بناءً على القيم الحقيقية الممسوحة أعلاه ليرسلها للسيرفر بالكامل
+    const payload = { 
+        category, 
+        name, // استخدام المتغير الصحيح المعرف بالأعلى
+        details, 
+        source, // استخدام المتغير الصحيح المعرف بالأعلى
+        phone, 
+        address, 
+        qty, 
+        price, 
+        currency, 
+        notes 
+    };
+    
+    if(id) payload.id = id;
+    if(created_at) payload.created_at = created_at;
 
-        const res = await fetch('/api/quotation_items', {
+    try {
+        // تأكد من تطابق اسم المسار مع ما كتبناه في server.js لجدول quotation_items
+        const res = await fetch('/api/quotation-items', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                category: document.getElementById('quotation-category')?.value || '',
-                name: material_name, // المتغير المسحوب من الشاشة
-                price: price,
-                source: supplier_name,
-                // تأكد من شحن بقية الحقول التي يتوقعها السيرفر إذا كانت متوفرة لديك بالشاشة
-            })
+            body: JSON.stringify(payload) // إرسال الكائن كاملاً ونظيفاً
         });
 
+        const result = await res.json();
+
+        if(res.ok && result.success) {
+            alert("✅ تم حفظ وتثبيت المادة بنجاح في عروض المواد.");
+            // تنظيف الفورم بعد النجاح إذا لزم الأمر
+            fetchSystemData(); 
+        } else {
+            alert(`❌ فشل الحفظ: ${result.error || 'خطأ داخلي'}`);
+        }
+    } catch (err) {
+        alert("❌ خطأ في الاتصال بالسيرفر!");
+    }
+} // <--- هذا هو
     async function archiveMaterialItem(id, currentStatus) {
         const match = materialsItems.find(i => i.id == id);
         if(!match) return;
