@@ -435,6 +435,8 @@ function renderMaterialsTable() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }
+
+    
     async function saveMaterialItem() {
     const id = document.getElementById('item-id').value;
     const created_at = document.getElementById('item-created-at').value;
@@ -453,43 +455,37 @@ function renderMaterialsTable() {
         return alert("املاً حقول المادة الأساسية!");
     }
 
-    // بناء البيانات بناءً على القيم الحقيقية الممسوحة أعلاه ليرسلها للسيرفر بالكامل
-    const payload = { 
-        category, 
-        name, // استخدام المتغير الصحيح المعرف بالأعلى
-        details, 
-        source, // استخدام المتغير الصحيح المعرف بالأعلى
-        phone, 
-        address, 
-        qty, 
-        price, 
-        currency, 
-        notes 
-    };
-    
+    const payload = { category, name, details, source, phone, address, qty, price, currency, notes };
     if(id) payload.id = id;
     if(created_at) payload.created_at = created_at;
 
     try {
-        // تأكد من تطابق اسم المسار مع ما كتبناه في server.js لجدول quotation_items
-        const res = await fetch('/api/quotation_items', {
+        // الرابط القديم والمستقر للسيرفر لإنهاء مشكلة قطع الاتصال
+        const res = await fetch('/api/materials', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
+
         const result = await res.json();
 
         if(res.ok && result.success) {
-            alert("✅ تم حفظ وتثبيت المادة بنجاح في عروض المواد.");
-            // تنظيف الفورم بعد النجاح إذا لزم الأمر
+            alert("✅ تم حفظ وتثبيت المادة بنجاح.");
+            // تصفير الفورم بعد النجاح
+            document.getElementById('item-id').value = '';
+            document.getElementById('item-name').value = '';
+            document.getElementById('item-qty').value = '';
+            document.getElementById('item-price').value = '';
             fetchSystemData(); 
         } else {
             alert(`❌ فشل الحفظ: ${result.error || 'خطأ داخلي'}`);
         }
     } catch (err) {
-        alert("❌ خطأ في الاتصال بالسيرفر!");
+        console.error("خطأ الإرسال:", err);
+        alert("❌ خطأ في الاتصال بالسيرفر! تأكد من أن السيرفر يعمل على نفس المنفذ.");
     }
-} // <--- هذا هو
+}
+    
     async function archiveMaterialItem(id, currentStatus) {
         const match = materialsItems.find(i => i.id == id);
         if(!match) return;
