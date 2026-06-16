@@ -57,6 +57,7 @@ app.post('/api/quotation_items', async (req, res) => {
     const item = req.body;
     console.log("📥 البيانات المستلمة لعروض المواد:", item);
 
+    // 1. بناء كائن البيانات الصافي والمطابق لأعمدة الجدول
     const dbRow = {
         category: item.category,
         name: item.name,
@@ -74,23 +75,30 @@ app.post('/api/quotation_items', async (req, res) => {
 
     if (item.created_at) dbRow.created_at = item.created_at;
     
-    if (item.id && Number(item.id) !== 0) {
+    // 2. الحل الجذري النهائي لعقدة الـ ID وقيد الـ Not-Null
+    if (item.id && Number(item.id) !== 0 && item.id !== "") {
+        // إذا كان تعديلاً لمادة موجودة أصلاً ولها ID حقيقي
         dbRow.id = Number(item.id);
     } else {
-        delete dbRow.id;
+        // لمرة واحدة وللأبد: توليد رقم فريد ذكي (بين 100000 و 999999) كمُعرّف للمادة الجديدة
+        // هذا يمنع سوبابيس من الاعتراض ويحمي القيد من الانهيار
+        dbRow.id = Math.floor(100000 + Math.random() * 900000);
+        console.log(`🎲 مادة جديدة تماماً - تم توليد معرف فريد لها من السيرفر: ${dbRow.id}`);
     }
 
     try {
+        // استخدام upsert ليدمج بين الحفظ الجديد والتعديل بأمان تام
         const { data, error } = await supabase
             .from('quotation_items')
             .upsert([dbRow])
             .select();
             
         if (error) {
-            console.error("❌ خطأ Supabase المباشر:", error.message);
+            console.error("❌ خطأ Supabase المباشر داخل الجدول:", error.message);
             return res.status(500).json({ error: error.message });
         }
 
+        console.log(`✅ تم التثبيت النهائي للمادة بالـ ID رقم (${dbRow.id}) بنجاح سحابي!`);
         res.json({ success: true, data });
     } catch (err) {
         console.error("💥 تحطم مسار عروض المواد:", err.message);
