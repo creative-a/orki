@@ -38,26 +38,28 @@ app.post('/api/login', async (req, res) => {
 // ==========================================
 // SECTOR 1: MATERIALS APIS (عروض المواد)
 // ==========================================
-app.get('/api/quotation_items', async (req, res) => {
+// 1. مسار الجلب القديم المطابق للواجهة مع جلب البيانات من الجدول السحابي الصحيح وترتيبها
+app.get('/api/materials', async (req, res) => {
     try {
         const { data, error } = await supabase
-            .from('quotation_items')
+            .from('quotation_items') // الجدول الحقيقي في سوبابيس
             .select('*')
-            .order('created_at', { ascending: false }); // ترتيب تنازلي: الأحدث يظهر في أول السطر دائماً
+            .order('created_at', { ascending: false }); // الأحدث في رأس الجدول دائماً
 
         if (error) throw error;
-        res.json(data);
+        res.json(data); // إرسال البيانات للمتصفح الذي ينتظرها في مسار /api/materials
     } catch (err) {
         console.error("❌ خطأ جلب عروض المواد:", err.message);
         res.status(500).json([]);
     }
 });
 
-app.post('/api/quotation_items', async (req, res) => {
+// 2. مسار الحفظ القديم المطابق للواجهة مع توليد الـ ID الذكي لـ Supabase
+app.post('/api/materials', async (req, res) => {
     const item = req.body;
-    console.log("📥 البيانات المستلمة لعروض المواد:", item);
+    console.log("📥 البيانات المستلمة في مسار materials الأصلي:", item);
 
-    // 1. بناء كائن البيانات الصافي والمطابق لأعمدة الجدول
+    // بناء كائن البيانات الصافي المطابق لأعمدة جدولك السحابي
     const dbRow = {
         category: item.category,
         name: item.name,
@@ -75,33 +77,29 @@ app.post('/api/quotation_items', async (req, res) => {
 
     if (item.created_at) dbRow.created_at = item.created_at;
     
-    // 2. الحل الجذري النهائي لعقدة الـ ID وقيد الـ Not-Null
+    // حل عقدة الـ ID وقيد الـ Not-Null لمرة واحدة وللأبد
     if (item.id && Number(item.id) !== 0 && item.id !== "") {
-        // إذا كان تعديلاً لمادة موجودة أصلاً ولها ID حقيقي
         dbRow.id = Number(item.id);
     } else {
-        // لمرة واحدة وللأبد: توليد رقم فريد ذكي (بين 100000 و 999999) كمُعرّف للمادة الجديدة
-        // هذا يمنع سوبابيس من الاعتراض ويحمي القيد من الانهيار
+        // توليد معرف رقمي فريد عشوائي للمادة الجديدة لمنع انهيار الـ Not-Null سحابياً
         dbRow.id = Math.floor(100000 + Math.random() * 900000);
-        console.log(`🎲 مادة جديدة تماماً - تم توليد معرف فريد لها من السيرفر: ${dbRow.id}`);
     }
 
     try {
-        // استخدام upsert ليدمج بين الحفظ الجديد والتعديل بأمان تام
         const { data, error } = await supabase
-            .from('quotation_items')
+            .from('quotation_items') // الشحن لجدول الداتابيس الحقيقي
             .upsert([dbRow])
             .select();
             
         if (error) {
-            console.error("❌ خطأ Supabase المباشر داخل الجدول:", error.message);
+            console.error("❌ خطأ Supabase المباشر:", error.message);
             return res.status(500).json({ error: error.message });
         }
 
-        console.log(`✅ تم التثبيت النهائي للمادة بالـ ID رقم (${dbRow.id}) بنجاح سحابي!`);
+        console.log(`✅ تم التثبيت بنجاح بالمعرف رقم (${dbRow.id})`);
         res.json({ success: true, data });
     } catch (err) {
-        console.error("💥 تحطم مسار عروض المواد:", err.message);
+        console.error("💥 تحطم مسار حفظ المواد:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
