@@ -371,7 +371,7 @@
         renderSupervisorsTable();
     }
 
-    function renderMaterialsTable() {
+function renderMaterialsTable() {
     const tbody = document.getElementById('materials-table-body');
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -380,8 +380,8 @@
     const searchInput = document.getElementById('search-material-input');
     const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
-    // تصفية المصفوفة بناءً على المسميات الحقيقية الجديدة (name و source)
-    const filtered = tableMaterials.filter(item => {
+    // التصحيح: القراءة من المصفوفة الحقيقية للنظام (materialsItems) بدلاً من الاسم الخاطئ السابق
+    const filtered = materialsItems.filter(item => {
         const matName = (item.name || '').toLowerCase();
         const matSource = (item.source || '').toLowerCase();
         const matCategory = (item.category || '').toLowerCase();
