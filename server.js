@@ -53,16 +53,15 @@ app.get('/api/materials', async (req, res) => {
     }
 });
 
-// توحيد اسم المسار ليعبر عن جدول عروض المواد الحقيقي
 app.post('/api/quotation_items', async (req, res) => {
     const item = req.body;
-    console.log("📥 البيانات المستلمة لعروض المواد (Quotation Items):", item);
+    console.log("📥 البيانات المستلمة لعروض المواد:", item);
 
     const dbRow = {
         category: item.category,
-        name: item.name || item.material_name, // دعم التسميتين النصيتين لاسم المادة
+        name: item.name,
         details: item.details,
-        source: item.source || item.supplier_name, // ربط المصدر أو المورد
+        source: item.source,
         phone: item.phone,
         qty: Number(item.qty || 1),
         unit: item.unit || 'قطعة',
@@ -75,8 +74,6 @@ app.post('/api/quotation_items', async (req, res) => {
 
     if (item.created_at) dbRow.created_at = item.created_at;
     
-    // الحل الذكي لمنع تحطم الـ upsert: 
-    // إذا كان السطر جديداً تماماً (id فارغ أو 0)، نحذف الحقل لكي تولده Supabase تلقائياً
     if (item.id && Number(item.id) !== 0) {
         dbRow.id = Number(item.id);
     } else {
@@ -84,32 +81,19 @@ app.post('/api/quotation_items', async (req, res) => {
     }
 
     try {
-        // استخدام upsert أو insert بناءً على وجود الـ id
         const { data, error } = await supabase
             .from('quotation_items')
             .upsert([dbRow])
             .select();
             
         if (error) {
-            console.error("❌ خطأ Supabase المباشر في جدول quotation_items:", error);
+            console.error("❌ خطأ Supabase المباشر:", error.message);
             return res.status(500).json({ error: error.message });
         }
 
-        console.log("✅ تم تدوين وتثبيت عرض المادة بنجاح في السحاب!");
         res.json({ success: true, data });
     } catch (err) {
-        console.error("💥 تحطم نهائي في مسار عروض المواد:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.delete('/api/materials/:id', async (req, res) => {
-    const { id } = req.params;
-    try {
-        const { error } = await supabase.from('quotation_items').delete().eq('id', id);
-        if (error) throw error;
-        res.json({ success: true });
-    } catch (err) {
+        console.error("💥 تحطم مسار عروض المواد:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
