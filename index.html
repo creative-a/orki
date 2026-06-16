@@ -368,33 +368,41 @@
     }
 
     function renderMaterialsTable() {
-        const tbody = document.getElementById('materials-table-body');
-        tbody.innerHTML = '';
-        if(currentUser.role === 'supervisor') return;
+    const tbody = document.getElementById('materials-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
 
-        materialsItems.forEach(item => {
-            const dateStr = item.created_at ? item.created_at.substring(0, 10) : '---';
-            const isArchivedBadge = item.is_archived ? ' <span style="color:red">(مؤرشف)</span>' : '';
-            
-            tbody.innerHTML += `<tr>
-                <td>${item.category}</td>
-                <td><b>${item.name}</b>${isArchivedBadge}</td>
-                <td>${item.details || ''}</td>
-                <td>${item.source || ''}</td>
-                <td>${item.phone || ''}</td>
-                <td>${item.address || '---'}</td> <td>${item.qty}</td>
-                <td>${item.unit || ''}</td>
-                <td>${parseFloat(item.price).toFixed(2)}</td>
-                <td>${item.currency}</td>
-                <td>${(item.qty * item.price).toFixed(2)}</td>
-                <td>${dateStr}</td> <td>${item.notes || '---'}</td> <td>
-                    <button class="btn-edit" onclick="editMaterialItemInForm(${item.id})">تعديل</button>
-                    <button class="btn-archive" onclick="archiveMaterialItem(${item.id}, ${item.is_archived})">أرشفة</button>
-                    <button class="btn-delete" onclick="deleteMaterialItemFromDb(${item.id})">حذف</button>
-                </td>
-            </tr>`;
-        });
-    }
+    // جلب نص البحث المكتوب في خانة البحث وتحويله لحروف صغيرة
+    const searchInput = document.getElementById('search-material-input');
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    // تصفية المصفوفة بناءً على المسميات الحقيقية الجديدة (name و source)
+    const filtered = tableMaterials.filter(item => {
+        const matName = (item.name || '').toLowerCase();
+        const matSource = (item.source || '').toLowerCase();
+        const matCategory = (item.category || '').toLowerCase();
+        
+        // البحث يطابق اسم المادة، أو اسم المصدر/المورد، أو القسم
+        return matName.includes(query) || matSource.includes(query) || matCategory.includes(query);
+    });
+
+    // رسم الجدول بناءً على البيانات المصفاة
+    filtered.forEach(item => {
+        tbody.innerHTML += `<tr>
+            <td>${item.category || '---'}</td>
+            <td><b>${item.name || '---'}</b></td>
+            <td>${item.details || '---'}</td>
+            <td><span class="badge bg-info">${item.source || '---'}</span></td>
+            <td>${item.phone || '---'}</td>
+            <td>${item.qty} ${item.unit || 'قطعة'}</td>
+            <td><strong style="color: #27ae60;">${item.price} ${item.currency || 'دولار'}</strong></td>
+            <td>${item.notes || '---'}</td>
+            <td>
+                <button class="btn-edit" onclick="editMaterialItem(${item.id})">تعديل</button>
+            </td>
+        </tr>`;
+    });
+}
 
     function editMaterialItemInForm(id) {
         const match = materialsItems.find(i => i.id == id);
