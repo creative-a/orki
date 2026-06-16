@@ -53,16 +53,19 @@ app.get('/api/materials', async (req, res) => {
     }
 });
 
-app.post('/api/materials', async (req, res) => {
+// توحيد اسم المسار ليعبر عن جدول عروض المواد الحقيقي
+app.post('/api/quotation_items', async (req, res) => {
     const item = req.body;
+    console.log("📥 البيانات المستلمة لعروض المواد (Quotation Items):", item);
+
     const dbRow = {
         category: item.category,
-        name: item.name,
+        name: item.name || item.material_name, // دعم التسميتين النصيتين لاسم المادة
         details: item.details,
-        source: item.source,
+        source: item.source || item.supplier_name, // ربط المصدر أو المورد
         phone: item.phone,
-        qty: Number(item.qty),
-        unit: item.unit,
+        qty: Number(item.qty || 1),
+        unit: item.unit || 'قطعة',
         price: Number(item.price),
         currency: item.currency || 'دولار',
         address: item.address || '',       
@@ -71,14 +74,31 @@ app.post('/api/materials', async (req, res) => {
     };
 
     if (item.created_at) dbRow.created_at = item.created_at;
-    if (item.id) dbRow.id = Number(item.id);
+    
+    // الحل الذكي لمنع تحطم الـ upsert: 
+    // إذا كان السطر جديداً تماماً (id فارغ أو 0)، نحذف الحقل لكي تولده Supabase تلقائياً
+    if (item.id && Number(item.id) !== 0) {
+        dbRow.id = Number(item.id);
+    } else {
+        delete dbRow.id;
+    }
 
     try {
-        const { data, error } = await supabase.from('quotation_items').upsert([dbRow]).select();
-        if (error) throw error;
+        // استخدام upsert أو insert بناءً على وجود الـ id
+        const { data, error } = await supabase
+            .from('quotation_items')
+            .upsert([dbRow])
+            .select();
+            
+        if (error) {
+            console.error("❌ خطأ Supabase المباشر في جدول quotation_items:", error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        console.log("✅ تم تدوين وتثبيت عرض المادة بنجاح في السحاب!");
         res.json({ success: true, data });
     } catch (err) {
-        console.error("❌ خطأ حفظ المواد:", err.message);
+        console.error("💥 تحطم نهائي في مسار عروض المواد:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
