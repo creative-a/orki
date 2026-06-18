@@ -285,7 +285,7 @@
         const resStg = await fetch('/api/project-stages');
         tableStages = await resStg.json();
 
-        // تشغيل دوال نظامك القياسية
+        // optimized rendering and dropdown updates after fetching all data
         updateSelectDropdowns();
         renderSystemTables();
         
@@ -378,10 +378,10 @@
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        const searchInput = document.getElementById('search-material-input');
+        const searchInput = document.getElementById('search-material');
         const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
-        // التصفية باستخدام المصفوفة الأصلية المستقرة لنظامك
+        // filter the materialsItems based on the search query
         const filtered = materialsItems.filter(item => {
             const matName = (item.name || '').toLowerCase();
             const matSource = (item.source || '').toLowerCase();
