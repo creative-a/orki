@@ -210,7 +210,7 @@
 </div>
 
 <script>
-    document.getElementById('sync-text').innerText = "🌐 متصل سحابياً (Supabase)";
+    document.getElementById('sync-text').innerText = "🌐 متصل سحابياً (DB)";
     document.getElementById('sync-text').style.background = "#27ae60";
 
     let tableProjects = []; 
@@ -250,7 +250,7 @@
                 currentUser = userObj;
                 applyRolePermissions();
             } else {
-                alert('بيانات تسجيل الدخول غير مطابقة في Supabase!');
+                alert('بيانات تسجيل الدخول غير مطابقة في DB!');
             }
         } catch (error) {
             alert('خطأ في الاتصال بالخادم!');
@@ -331,14 +331,14 @@
 
     function updateSelectDropdowns() {
         const projAssignSelect = document.getElementById('sup-project-assign');
-        projAssignSelect.innerHTML = '<option value="">اسناد وإلحاق بمشروع معين...</option>';
+        projAssignSelect.innerHTML = '<option value="">اسناد لمشروع ...</option>';
         tableProjects.forEach(p => {
             projAssignSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
         });
 
         const reqProjSel = document.getElementById('req-project-select');
         const stgProjSel = document.getElementById('stage-project-select');
-        reqProjSel.innerHTML = '<option value="">اختر المشروع المرتبط بالطلب...</option>';
+        reqProjSel.innerHTML = '<option value="">اختر المشروع المرتبط ...</option>';
         stgProjSel.innerHTML = '<option value="">اختر المشروع...</option>';
 
         let allowedProjects = tableProjects;
@@ -370,73 +370,74 @@
         renderSupervisorsTable();
     }
 
-function renderMaterialsTable() {
-    const tbody = document.getElementById('materials-table-body');
-    if (!tbody) return;
-    tbody.innerHTML = '';
+    function renderMaterialsTable() {
+        const tbody = document.getElementById('materials-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
 
-    const searchInput = document.getElementById('search-material-input');
-    const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+        const searchInput = document.getElementById('search-material-input');
+        const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
-    // التصفية باستخدام المصفوفة الأصلية المستقرة لنظامك
-    const filtered = materialsItems.filter(item => {
-        const matName = (item.name || '').toLowerCase();
-        const matSource = (item.source || '').toLowerCase();
-        const matCategory = (item.category || '').toLowerCase();
-        return matName.includes(query) || matSource.includes(query) || matCategory.includes(query);
-    });
+        // التصفية باستخدام المصفوفة الأصلية المستقرة لنظامك
+        const filtered = materialsItems.filter(item => {
+            const matName = (item.name || '').toLowerCase();
+            const matSource = (item.source || '').toLowerCase();
+            const matCategory = (item.category || '').toLowerCase();
+            return matName.includes(query) || matSource.includes(query) || matCategory.includes(query);
+        });
 
-    filtered.forEach(item => {
-        // حساب الإجمالي تلقائياً (الكمية × السعر الإفرادي)
-        const qty = parseFloat(item.qty) || 0;
-        const price = parseFloat(item.price) || 0;
-        const total = (qty * price).toFixed(2);
+        filtered.forEach(item => {
+            // حساب الإجمالي تلقائياً (الكمية × السعر الإفرادي)
+            const qty = parseFloat(item.qty) || 0;
+            const price = parseFloat(item.price) || 0;
+            const total = (qty * price).toFixed(2);
 
-        // تنسيق التاريخ ليظهر بشكل مقروء
-        const dateStr = item.created_at ? new Date(item.created_at).toLocaleDateString('ar-EG') : '---';
+            // تنسيق التاريخ ليظهر بشكل مقروء
+            const dateStr = item.created_at ? new Date(item.created_at).toLocaleDateString('ar-EG') : '---';
 
-        // رسم السطر متوافق 100% مع ترتيب <thead> الجديد الخاص بك
-        tbody.innerHTML += `<tr>
-            <td><span class="badge bg-secondary">${dateStr}</span></td> <td>${item.category || '---'}</td>
-            <td><b>${item.name || '---'}</b></td>
-            <td>${item.details || '---'}</td>
-            <td><span class="badge bg-info">${item.source || '---'}</span></td>
-            <td>${item.phone || '---'}</td>
-            <td>${item.address || '---'}</td>
-            <td>${qty}</td>
-            <td>${item.unit || 'قطعة'}</td>
-            <td><strong style="color: #2980b9;">${price}</strong></td> <td>${item.currency || 'دولار'}</td>
-            <td><strong style="color: #27ae60;">${total}</strong></td> <td>${item.notes || '---'}</td>
-                <td>
-                <button class="btn btn-sm btn-warning" onclick="editMaterialItem(${item.id})">تعديل</button>
-                <button class="btn btn-sm btn-secondary" onclick="archiveMaterialItemFromDb(${item.id})">أرشفة</button> 
-                <button class="btn btn-sm btn-danger" onclick="deleteMaterialItemFromDb(${item.id})">حذف</button>
-                </td>
-        </tr>`;
-    });
-}
-    function editMaterialItemInForm(id) {
-        const match = materialsItems.find(i => i.id == id);
-        if(match) {
-            document.getElementById('item-id').value = match.id;
-            document.getElementById('item-created-at').value = match.created_at || '';
-            document.getElementById('item-category').value = match.category;
-            document.getElementById('item-name').value = match.name;
-            document.getElementById('item-details').value = match.details || '';
-            document.getElementById('item-source').value = match.source || '';
-            document.getElementById('item-phone').value = match.phone || '';
-            document.getElementById('item-address').value = match.address || '';
-            document.getElementById('item-qty').value = match.qty;
-            document.getElementById('item-unit').value = match.unit || '';
-            document.getElementById('item-price').value = match.price;
-            document.getElementById('item-currency').value = match.currency;
-            document.getElementById('item-notes').value = match.notes || '';
-            calculateMaterialRowTotal();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+            // رسم السطر متوافق 100% مع ترتيب <thead> الجديد الخاص بك
+            tbody.innerHTML += `<tr>
+                <td><span class="badge bg-secondary">${dateStr}</span></td> <td>${item.category || '---'}</td>
+                <td><b>${item.name || '---'}</b></td>
+                <td>${item.details || '---'}</td>
+                <td><span class="badge bg-info">${item.source || '---'}</span></td>
+                <td>${item.phone || '---'}</td>
+                <td>${item.address || '---'}</td>
+                <td>${qty}</td>
+                <td>${item.unit || 'قطعة'}</td>
+                <td><strong style="color: #2980b9;">${price}</strong></td> <td>${item.currency || 'دولار'}</td>
+                <td><strong style="color: #27ae60;">${total}</strong></td> <td>${item.notes || '---'}</td>
+                    <td>
+                    <button class="btn btn-sm btn-warning" onclick="editMaterialItemInForm(${item.id})">تعديل</button>
+                    <button class="btn btn-sm btn-secondary" onclick="archiveMaterialItemFromDb(${item.id})">أرشفة</button> 
+                    <button class="btn btn-sm btn-danger" onclick="deleteMaterialItemFromDb(${item.id})">حذف</button>
+                    </td>
+            </tr>`;
+        });
     }
+        
+    function editMaterialItemInForm(id) {
+            const match = materialsItems.find(i => i.id == id);
+            if(match) {
+                document.getElementById('item-id').value = match.id;
+                document.getElementById('item-created-at').value = match.created_at || '';
+                document.getElementById('item-category').value = match.category;
+                document.getElementById('item-name').value = match.name;
+                document.getElementById('item-details').value = match.details || '';
+                document.getElementById('item-source').value = match.source || '';
+                document.getElementById('item-phone').value = match.phone || '';
+                document.getElementById('item-address').value = match.address || '';
+                document.getElementById('item-qty').value = match.qty;
+                document.getElementById('item-unit').value = match.unit || '';
+                document.getElementById('item-price').value = match.price;
+                document.getElementById('item-currency').value = match.currency;
+                document.getElementById('item-notes').value = match.notes || '';
+                calculateMaterialRowTotal();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
 
-    
+        
     async function saveMaterialItem() {
     const id = document.getElementById('item-id').value;
     const created_at = document.getElementById('item-created-at').value;
@@ -486,7 +487,7 @@ function renderMaterialsTable() {
     }
 }
     
-    async function archiveMaterialItem(id, currentStatus) {
+    async function archiveMaterialItemFromDb(id, currentStatus) {
         const match = materialsItems.find(i => i.id == id);
         if(!match) return;
         match.is_archived = !currentStatus;
@@ -611,79 +612,77 @@ function renderMaterialsTable() {
         });
     }
 
-async function saveProjectRequestItem(event) {
-    // منع السلوك الافتراضي إذا كان الزر داخل Form
-    if (event && event.preventDefault) event.preventDefault();
+    async function saveProjectRequestItem(event) {
+        // منع السلوك الافتراضي إذا كان الزر داخل Form
+        if (event && event.preventDefault) event.preventDefault();
 
-    // 1. تحديد الزر الذي تم الضغط عليه حالياً
-    const btn = event ? event.target : document.activeElement;
-    
-    // 2. العثور على أقرب حاوية تحيط بالزِر والحقول (الـ Form أو الـ Div المشترك)
-    const container = btn ? btn.closest('div, form, section') : null;
-
-    let material = '';
-    let qty = '';
-    let details = '';
-    let project = '';
-    let due_date = '';
-
-    if (container) {
-        // 3. التقاط الحقول الموجودة داخل نفس الصندوق القريب من الزر حصراً!
-        const inputMaterial = container.querySelector('input[type="text"], [id*="material"]');
-        const inputQty = container.querySelector('input[type="number"], [id*="qty"]');
-        const inputDetails = container.querySelector('textarea, [id*="detail"]');
-        const selectProject = container.querySelector('select, [id*="project"]');
-        const inputDue = container.querySelector('input[type="date"], [id*="due"]');
-
-        if (inputMaterial) material = inputMaterial.value.trim();
-        if (inputQty) qty = inputQty.value;
-        if (inputDetails) details = inputDetails.value.trim();
-        if (selectProject) project = selectProject.value;
-        if (inputDue) due_date = inputDue.value;
-    }
-
-    // 4. خطوة احتياطية أخيرة لو فشل الالتقاط الموضعي (البحث التقليدي)
-    if (!material || !qty) {
-        material = document.getElementById('request-material') ? document.getElementById('request-material').value.trim() : material;
-        qty = document.getElementById('request-qty') ? document.getElementById('request-qty').value : qty;
-    }
-
-    // التحقق الفوري
-    if (!material || !qty) {
-        return alert("⚠️ يرجى ملء اسم المادة والكمية المطلوبة!\nالنظام لم يستطع التقاط النص من الحقول المحيطة بالزر.");
-    }
-
-    try {
-        const res = await fetch('/api/project-requests', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ project, material, qty, details, due_date })
-        });
+        // 1. تحديد الزر الذي تم الضغط عليه حالياً
+        const btn = event ? event.target : document.activeElement;
         
-        const result = await res.json();
-        
-        if (res.ok && result.success) { 
-            alert("✅ تم إرسال طلب المواد بنجاح وسيتلقاه الأدمن."); 
-            // تنظيف الحقول النشطة فقط
-            if (container) {
-                const inputMaterial = container.querySelector('input[type="text"]');
-                const inputQty = container.querySelector('input[type="number"]');
-                const inputDetails = container.querySelector('textarea');
-                if (inputMaterial) inputMaterial.value = '';
-                if (inputQty) inputQty.value = '';
-                if (inputDetails) inputDetails.value = '';
-            }
-            fetchSystemData(); 
-        } else {
-            alert(`❌ فشل السيرفر في الحفظ: ${result.error || 'خطأ داخلي'}`);
+        // 2. العثور على أقرب حاوية تحيط بالزِر والحقول (الـ Form أو الـ Div المشترك)
+        const container = btn ? btn.closest('div, form, section') : null;
+
+        let material = '';
+        let qty = '';
+        let details = '';
+        let project = '';
+        let due_date = '';
+
+        if (container) {
+            // 3. التقاط الحقول الموجودة داخل نفس الصندوق القريب من الزر حصراً!
+            const inputMaterial = container.querySelector('input[type="text"], [id*="material"]');
+            const inputQty = container.querySelector('input[type="number"], [id*="qty"]');
+            const inputDetails = container.querySelector('textarea, [id*="detail"]');
+            const selectProject = container.querySelector('select, [id*="project"]');
+            const inputDue = container.querySelector('input[type="date"], [id*="due"]');
+
+            if (inputMaterial) material = inputMaterial.value.trim();
+            if (inputQty) qty = inputQty.value;
+            if (inputDetails) details = inputDetails.value.trim();
+            if (selectProject) project = selectProject.value;
+            if (inputDue) due_date = inputDue.value;
         }
-    } catch (err) {
-        alert("❌ خطأ في الاتصال بالسيرفر!");
+
+        // 4. خطوة احتياطية أخيرة لو فشل الالتقاط الموضعي (البحث التقليدي)
+        if (!material || !qty) {
+            material = document.getElementById('request-material') ? document.getElementById('request-material').value.trim() : material;
+            qty = document.getElementById('request-qty') ? document.getElementById('request-qty').value : qty;
+        }
+
+        // التحقق الفوري
+        if (!material || !qty) {
+            return alert("⚠️ يرجى ملء اسم المادة والكمية المطلوبة!\nالنظام لم يستطع التقاط النص من الحقول المحيطة بالزر.");
+        }
+
+        try {
+            const res = await fetch('/api/project-requests', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ project, material, qty, details, due_date })
+            });
+            
+            const result = await res.json();
+            
+            if (res.ok && result.success) { 
+                alert("✅ تم إرسال طلب المواد بنجاح وسيتلقاه الأدمن."); 
+                // تنظيف الحقول النشطة فقط
+                if (container) {
+                    const inputMaterial = container.querySelector('input[type="text"]');
+                    const inputQty = container.querySelector('input[type="number"]');
+                    const inputDetails = container.querySelector('textarea');
+                    if (inputMaterial) inputMaterial.value = '';
+                    if (inputQty) inputQty.value = '';
+                    if (inputDetails) inputDetails.value = '';
+                }
+                fetchSystemData(); 
+            } else {
+                alert(`❌ فشل السيرفر في الحفظ: ${result.error || 'خطأ داخلي'}`);
+            }
+        } catch (err) {
+            alert("❌ خطأ في الاتصال بالسيرفر!");
+        }
     }
-}
-    
-    
-    
+         
     async function saveProjectSupervisorAccount() {
         const name = document.getElementById('sup-fullname').value.trim();
         const phone_number = document.getElementById('sup-phone').value.trim();
@@ -700,7 +699,7 @@ async function saveProjectRequestItem(event) {
         });
         if(res.ok) { alert("تم الحفظ بنجاح!"); fetchSystemData(); }
     }
-async function saveProjectStageItem() {
+    async function saveProjectStageItem() {
     const project_id = document.getElementById('stage-project-select').value; // يأخذ الرقم المعرف للمشروع
     const stage_name = document.getElementById('stage-name').value.trim();
     const details = document.getElementById('stage-details').value.trim();
@@ -724,8 +723,11 @@ async function saveProjectStageItem() {
         alert("فشل إرسال المرحلة، تحقق من ترامينال السيرفر.");
     }
 }
+   
     function exportMaterialsToExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("materials-table")), "Materials.xlsx"); }
+
     function exportRequestsToExcel() { XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("projects-table")), "Requests.xlsx"); }
+
 </script>
 </body>
 </html>
