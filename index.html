@@ -84,6 +84,10 @@
                 <h3>➕ إضافة / تعديل مادة لعروض الأسعار:</h3>
                 <div class="form-group">
                     <input type="hidden" id="item-id">
+                    <div style="display: inline-block; direction: rtl; text-align: right; vertical-align: middle; margin-left: 10px;">
+                        <label for="item-created-at" style="font-size: 11px; color: #7f8c8d; display: block; margin-bottom: 2px;">تاريخ المادة:</label>
+                        <input type="date" id="item-created-at" style="width: 140px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                    </div>
                     <input type="hidden" id="item-created-at">
                     <select id="item-category">
                         <option value="" disabled selected>التصنيف الرئيسي...</option>
@@ -108,10 +112,9 @@
                 </div>
             </div>
             <div class="action-bar">
-                <input type="text" id="search-material" placeholder="ابحث باسم المادة أو المصدر...">
+                <input type="text" id="search-material" oninput="renderMaterialsTable()" placeholder="ابحث باسم المادة أو المصدر...">
                 <button class="btn-excel" onclick="exportMaterialsToExcel()">📊 تخريج إكسل</button>
-            </div>
-            <table>
+            </div>            <table>
                 <thead>
                     <tr>
                         <th>التاريخ</th><th>التصنيف</th><th>اسم المادة</th><th>التفصيل</th><th>المصدر</th><th>الهاتف</th><th>العنوان</th><th>الكمية</th><th>الوحدة</th><th>إفرادي</th><th>العملة</th><th>إجمالي</th><th>ملاحظات</th><th>العمليات</th>                    </tr>
@@ -411,6 +414,7 @@
                     <button class="btn btn-sm btn-warning" onclick="editMaterialItemInForm(${item.id})">تعديل</button>
                     <button class="btn btn-sm btn-secondary" onclick="archiveMaterialItemFromDb(${item.id})">أرشفة</button> 
                     <button class="btn btn-sm btn-danger" onclick="deleteMaterialItemFromDb(${item.id})">حذف</button>
+                    <button class="btn btn-sm btn-danger" onclick="repeatMaterialItemFromDb(${item.id})">تكرار</button>
                     </td>
             </tr>`;
         });
@@ -487,6 +491,37 @@
     }
 }
     
+    function repeatMaterialItemFromDb(id) {
+        // 1. البحث عن المادة المحددة داخل مصفوفة النظام الأصلية
+        const targetItem = materialsItems.find(item => item.id == id);
+        if (!targetItem) return alert("المادة غير موجودة!");
+
+        // 2. تعبئة بيانات الفورم بالكامل لتسهيل التكرار والتعديل السريع
+        document.getElementById('item-category').value = targetItem.category || '';
+        document.getElementById('item-name').value = targetItem.name || '';
+        document.getElementById('item-details').value = targetItem.details || '';
+        document.getElementById('item-source').value = targetItem.source || '';
+        document.getElementById('item-phone').value = targetItem.phone || '';
+        document.getElementById('item-address').value = targetItem.address || '';
+        document.getElementById('item-qty').value = targetItem.qty || '';
+        document.getElementById('item-unit').value = targetItem.unit || '';
+        document.getElementById('item-price').value = targetItem.price || '';
+        document.getElementById('item-currency').value = targetItem.currency || 'دولار';
+        document.getElementById('item-notes').value = targetItem.notes || '';
+
+        // 3. السر السحري: تصفير حقل الـ ID وحقل تاريخ الإنشاء القديم
+        // هذا يضمن أن زر "حفظ وتثبيت" سيتعامل معها كـ مادة جديدة تماماً
+        document.getElementById('item-id').value = '';
+        document.getElementById('item-created-at').value = '';
+
+        // 4. تحديث حقل حساب الإجمالي تلقائياً في الفورم، والتركيز على حقل الكمية للتعديل الفوري
+        calculateMaterialRowTotal();
+        document.getElementById('item-qty').focus();
+        
+        // تنبيه بسيط للمستخدم
+        console.log("🔄 تم استدعاء بيانات المادة للتكرار كمادة جديدة");
+    }
+
     async function archiveMaterialItemFromDb(id, currentStatus) {
         const match = materialsItems.find(i => i.id == id);
         if(!match) return;
@@ -541,6 +576,8 @@
             alert("فشل إرسال المشروع للسيرفر.");
         }
     }
+
+
 
     function renderProjectRequestsTable() {
         const tbody = document.getElementById('requests-table-body');
@@ -682,7 +719,7 @@
             alert("❌ خطأ في الاتصال بالسيرفر!");
         }
     }
-         
+
     async function saveProjectSupervisorAccount() {
         const name = document.getElementById('sup-fullname').value.trim();
         const phone_number = document.getElementById('sup-phone').value.trim();
