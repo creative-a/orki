@@ -354,7 +354,7 @@
             }
         }
         allowedProjects.forEach(p => {
-            reqProjSel.innerHTML += `<option value="${p.name}">${p.name}</option>`;
+            reqProjSel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
             stgProjSel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
         });
     }
@@ -586,9 +586,9 @@
 
         if(currentUser.role === 'supervisor') {
             const assignment = tableSupervisors.find(s => s.user_id == currentUser.id);
-            const activeProjectName = assignment ? assignment.project_name : '---';
-            filtered = filtered.filter(item => item.project === activeProjectName);
-        }
+            const activeProjectId = assignment ? assignment.project_id : null;
+            filtered = filtered.filter(item => item.project_id === activeProjectId);
+            }
 
         filtered.forEach(item => {
             const badge = item.is_completed 
