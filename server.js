@@ -1,476 +1,126 @@
+// 1. تفعيل قراءة متغيرات البيئة في السطر الأول دائماً
+require('dotenv').config(); 
+
+// 2. استدعاء المكتبات وتعيين المتغيرات (هنا تم تعريف express)
 const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
+const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
 
+// 3. تشغيل تطبيق إكسبريس (يجب أن يأتي حتماً بعد التعريف)
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3005;
 
-// استدعاء متغيرات البيئة
+// 4. الإعدادات الأساسية والميدل وير العامة
+app.use(cors());
+app.use(express.json());
+app.use(express.static(__dirname));
+
+// 5. تهيئة الاتصال بقاعدة بيانات Supabase
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-app.use(express.json());
-app.use(express.static(__dirname));
+// تصدير الكائن للأقسام القادمة
+module.exports = { supabase };
+// استدعاء مكتبة التشفير في أعلى الملف مع باقي الـ requires إذا لم تكن موجودة
+const jwt = require('jsonwebtoken');
 
-// ==========================================
-// AUTHENTICATION API
-// ==========================================
-app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
+// المفتاح السري المجلوب من ملف البيئة
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
+
+// ----------------------------------------
+// [POST] /api/auth/login : نقطة تشغيل تسجيل الدخول
+// ----------------------------------------
+
+app.post('/api/auth/login', async (req, res) => {
     try {
-        const { data, error } = await supabase
-            .from('users')
+        const { username, password } = req.body;
+
+        // 1️⃣ طباعة البيانات القادمة من المتصفح للتأكد من سلامة وصولها
+        console.log("➡️ [طلب دخول] البيانات المرسلة من الواجهة:", { username, password });
+
+        if (!username || !password) {
+            return res.status(400).json({ success: false, message: 'الرجاء إدخال اسم المستخدم وكلمة المرور' });
+        }
+
+        // الاستعلام باستخدام maybeSingle لمنع انهيار الاستعلام عند عدم وجود تطابق
+        const { data: user, error } = await supabase
+            .from('users') 
             .select('*')
             .eq('username', username)
-            .eq('password', password)
-            .single();
+            .maybeSingle(); // تعديل جوهري لمنع الأخطاء الحادة
 
-        if (error || !data) {
-            return res.status(401).json({ error: 'بيانات تسجيل الدخول غير صحيحة!' });
-        }
-        res.json(data);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ==========================================
-// SECTOR 1: MATERIALS APIS (quotation)
-// ==========================================
-// 1. مسار الجلب القديم المطابق للواجهة مع جلب البيانات من الجدول السحابي الصحيح وترتيبها
-app.get('/api/materials', async (req, res) => {
-    try {
-        const { data, error } = await supabase
-            .from('quotation_items') // الجدول الحقيقي في سوبابيس
-            .select('*')
-            .order('created_at', { ascending: false }); // الأحدث في رأس الجدول دائماً
-
-        if (error) throw error;
-        res.json(data); // إرسال البيانات للمتصفح الذي ينتظرها في مسار /api/materials
-    } catch (err) {
-        console.error("❌ خطأ جلب عروض المواد:", err.message);
-        res.status(500).json([]);
-    }
-});
-
-// 2. مسار الحفظ القديم المطابق للواجهة مع توليد الـ ID الذكي لـ Supabase
-app.post('/api/materials', async (req, res) => {
-    const item = req.body;
-    console.log("📥 البيانات المستلمة في مسار materials الأصلي:", item);
-
-    // بناء كائن البيانات الصافي المطابق لأعمدة جدولك السحابي
-    const dbRow = {
-        category: item.category,
-        name: item.name,
-        details: item.details,
-        source: item.source,
-        phone: item.phone,
-        qty: Number(item.qty || 1),
-        unit: item.unit || 'قطعة',
-        price: Number(item.price),
-        currency: item.currency || 'دولار',
-        address: item.address || '',       
-        notes: item.notes || '',           
-        is_archived: item.is_archived === true
-    };
-
-    if (item.created_at) dbRow.created_at = item.created_at;
-    
-    // حل عقدة الـ ID وقيد الـ Not-Null لمرة واحدة وللأبد
-    if (item.id && Number(item.id) !== 0 && item.id !== "") {
-        dbRow.id = Number(item.id);
-    } else {
-        // توليد معرف رقمي فريد عشوائي للمادة الجديدة لمنع انهيار الـ Not-Null سحابياً
-        dbRow.id = Math.floor(100000 + Math.random() * 900000);
-    }
-
-    try {
-        const { data, error } = await supabase
-            .from('quotation_items') // الشحن لجدول الداتابيس الحقيقي
-            .upsert([dbRow])
-            .select();
-            
-        if (error) {
-            console.error("❌ خطأ Supabase المباشر:", error.message);
-            return res.status(500).json({ error: error.message });
-        }
-
-        console.log(`✅ تم التثبيت بنجاح بالمعرف رقم (${dbRow.id})`);
-        res.json({ success: true, data });
-    } catch (err) {
-        console.error("💥 تحطم مسار حفظ المواد:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// مسار الحذف النهائي لعروض المواد - مطابق تماماً لطلب المتصفح
-app.delete('/api/materials/:id', async (req, res) => {
-    const { id } = req.params;
-    console.log(`🗑️ طلب حذف مادة يحمل المعرف الرقمي: ${id}`);
-
-    try {
-        // الحذف المباشر والصريح من جدول قاعدة البيانات السحابية الحقيقي
-        const { data, error } = await supabase
-            .from('quotation_items') // جدولك الحقيقي في سوبابيس
-            .delete()
-            .eq('id', Number(id)); // مطابقة الرقم بدقة
+        // 2️⃣ طباعة النتيجة الفعلية المسترجعة من سوبابيس في الـ CMD
+        console.log("⬅️ [قاعدة البيانات] النتيجة المرجعة من Supabase:", { user, error });
 
         if (error) {
-            console.error("❌ خطأ Supabase أثناء الحذف:", error.message);
-            return res.status(500).json({ error: error.message });
+            console.error('❌ خطأ أثناء الاتصال بجدول users:', error);
+            return res.status(501).json({ success: false, message: 'خطأ في الاتصال بقاعدة البيانات' });
         }
 
-        console.log(`✅ تم مسح المادة رقم (${id}) بنجاح من السحاب!`);
-        res.json({ success: true, message: "تم الحذف بنجاح" });
-    } catch (err) {
-        console.error("💥 تحطم مسار الحذف تماماً:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
+        if (!user) {
+            console.log(`⚠️ لم يتم العثور على أي مستخدم في الداتابيس يحمل الاسم: [${username}]`);
+            return res.status(401).json({ success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+        }
 
-// ==========================================
-// SECTOR 2: PROJECTS & REQUESTS APIS (المشاريع والطلبات)
-// ==========================================
+        // 3️⃣ طباعة ومقارنة كلمات المرور أمام عينك في السيرفر
+        console.log(`🔑 فحص كلمة المرور: المدخلة [${password}] مقابل المخزنة [${user.password}]`);
 
-// جلب المشاريع - تم إصلاح دالة التحويل لتعمل بأمان ودون إيقاف السيرفر
-app.get('/api/projects', async (req, res) => {
-    try {
-        const { data, error } = await supabase
-            .from('projects')
-            .select('*')
-            .order('id', { ascending: false });
-            
-        if (error) throw error;
+        if (user.password !== password) {
+            console.log("❌ كلمة المرور غير متطابقة!");
+            return res.status(401).json({ success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+        }
 
-        // تحويل آمن للحقول لضمان قراءتها في الواجهة index.html
-        const mappedData = (data || []).map(p => {
-            return {
-                id: p.id,
-                name: p.project_name || p.name || 'مشروع بدون اسم', 
-                region: p.region || '',
-                start_date: p.start_date || ''
-            };
+        // توليد الـ Token
+        const token = jwt.sign(
+            { userId: user.id, username: user.username, role: user.role || 'admin' },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        console.log("🎉 تم التحقق بنجاح وتوليد الـ JWT Token للمستخدم:", user.username);
+
+        return res.json({
+            success: true,
+            message: 'تم تسجيل الدخول بنجاح',
+            token,
+            user: { username: user.username, role: user.role }
         });
 
-        res.json(mappedData);
     } catch (err) {
-        console.error("❌ خطأ جلب المشاريع كلياً:", err.message);
-        res.status(500).json({ error: err.message });
+        console.error('Login Error:', err);
+        return res.status(500).json({ success: false, message: 'حدث خطأ داخلي في الخادم' });
     }
 });
 
-// إضافة مشروع جديد بالاعتماد على الحقل الحقيقي لقاعدة بياناتك project_name
-app.post('/api/projects', async (req, res) => {
-    const { name, region, start_date } = req.body;
-    console.log("📥 البيانات المستلمة لإنشاء مشروع:", { name, region, start_date });
 
-    const formattedDate = start_date ? start_date : null;
+// ميدل وير لفحص الـ Token وحماية المسارات الحساسة
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    // جلب التوكن من الهيدر (يكون بصيغة Bearer TOKEN_HERE)
+    const token = authHeader && authHeader.split(' ')[2] ? authHeader.split(' ')[2] : (authHeader && authHeader.split(' ')[1]);
 
-    try {
-        const { data, error } = await supabase
-            .from('projects')
-            .insert([{ 
-                project_name: name, 
-                region: region, 
-                start_date: formattedDate 
-            }])
-            .select();
-            
-        if (error) throw error;
-        console.log("✅ تم إدخال المشروع بنجاح:", data);
-        res.json({ success: true, data });
-    } catch (err) {
-        console.error("❌ خطأ إدخال مشروع جديد:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 1. جلب طلبات المواد مع دمج اسم المشروع ديناميكياً للعرض بالشاشة
-app.get('/api/project-requests', async (req, res) => {
-    try {
-        const { data: requests, error: reqErr } = await supabase
-            .from('project_requests')
-            .select('*')
-            .order('id', { ascending: false });
-            
-        if (reqErr) throw reqErr;
-
-        // جلب المشاريع لترجمة المعرف الرقمي إلى اسم نصي يظهر للمشرف
-        const { data: projects } = await supabase.from('projects').select('*');
-
-        const mappedRequests = (requests || []).map(r => {
-            // البحث عن المشروع المطابق سواء كان الربط بـ project_id أو الحقل القديم project
-            const projectId = r.project_id || r.project;
-            const matchProj = (projects || []).find(p => p.id === Number(projectId));
-            
-            return {
-                id: r.id,
-                project: matchProj ? (matchProj.project_name || matchProj.name) : (r.project || 'غير محدد'),
-                material: r.material || '',
-                details: r.details || '',
-                qty: r.qty || 0,
-                due_date: r.due_date || '',
-                is_completed: r.is_completed === true
-            };
-        });
-
-        res.json(mappedRequests);
-    } catch (err) {
-        console.error("❌ خطأ جلب طلبات المواد:", err.message);
-        res.status(500).json([]);
-    }
-});
-
-// 2. إضافة طلب مواد جديد بالاعتماد على الهيكلية الرقمية الصحيحة
-app.post('/api/project-requests', async (req, res) => {
-    const item = req.body;
-    console.log("📥 البيانات المستلمة لطلب المواد:", item);
-
-    // 1. بناء السطر الأساسي للبيانات
-    const dbRow = {
-        material: item.material,
-        details: item.details,
-        qty: Number(item.qty),
-        due_date: item.due_date || null,
-        is_completed: item.is_completed === true
-    };
-
-    // 2. ربط المشروع بالمعرف الرقمي الصحيح
-    if (item.project && !isNaN(item.project)) {
-        dbRow.project_id = Number(item.project);
-        dbRow.project = Number(item.project); 
-    } else if (item.project) {
-        dbRow.project = item.project; 
+    if (!token) {
+        return res.status(401).json({ success: false, message: 'وصول غير مصرح به، التوكن مفقود' });
     }
 
-    // 3. الحل الذكي لحماية حقل الـ ID من قيد الـ Not-Null
-    if (item.id && Number(item.id) !== 0) {
-        // إذا كان الطلب قادماً بـ ID حقيقي (عملية تعديل أو تحديث لسطر قائم)
-        dbRow.id = Number(item.id);
-    } else {
-        // إذا كان طلباً جديداً كلياً، نترك سوبابيس تولد الرقم تلقائياً
-        // نقوم بحذف الخاصية تماماً من الكائن لكي لا تُرسل كـ null وتسبب انهياراً
-        delete dbRow.id;
-    }
-
-    try {
-        const { data, error } = await supabase
-            .from('project_requests')
-            .insert([dbRow])
-            .select();
-            
-        if (error) {
-            console.error("❌ خطأ Supabase المباشر في جدول project_requests:", error);
-            
-            // خطة إنقاذ احتياطية: إذا كان الجدول لا يولد أرقاماً تلقائية ويطلب ID صريح
-            if (error.message.includes('violates not-null constraint') && error.message.includes('"id"')) {
-                console.log("⚠️ الجدول يرفض التوليد التلقائي، سنقوم بتوليد معرف عشوائي فريد وسطي...");
-                
-                // توليد رقم فريد عشوائي كـ ID احتياطي (بين 10000 و 99999)
-                dbRow.id = Math.floor(10000 + Math.random() * 90000);
-                
-                const retryResult = await supabase.from('project_requests').insert([dbRow]).select();
-                if (retryResult.error) throw retryResult.error;
-                
-                console.log("✅ نجحت خطة الإنقاذ وتم الحفظ بالـ ID المولد يدوياً!");
-                return res.json({ success: true, data: retryResult.data });
-            }
-            
-            return res.status(500).json({ error: error.message });
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ success: false, message: 'جلسة انتهت أو توكن غير صالح' });
         }
+        req.user = user; // شحن بيانات المستخدم الموثق بداخل الطلب ليراها السيرفر
+        next(); // السماح بالعبور للمسار التالي بسلام
+    });
+}
 
-        console.log("✅ تم حفظ طلب المواد بنجاح في السحاب!");
-        res.json({ success: true, data });
-    } catch (err) {
-        console.error("💥 تحطم مسار طلبات المواد كلياً:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-// تحديث حالة إنجاز الطلب
-app.put('/api/project-requests/:id/status', async (req, res) => {
-    const { id } = req.params;
-    const { is_completed } = req.body;
-    try {
-        const { data, error } = await supabase
-            .from('project_requests')
-            .update({ is_completed: is_completed })
-            .eq('id', id)
-            .select();
-            
-        if (error) throw error;
-        res.json({ success: true, data });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.delete('/api/project-requests/:id', async (req, res) => {
-    const { id } = req.params;
-    try {
-        const { error } = await supabase.from('project_requests').delete().eq('id', id);
-        if (error) throw error;
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ==========================================
-// SECTOR 3: SUPERVISORS & STAGES
-// ==========================================
-
-app.get('/api/project-supervisors', async (req, res) => {
-    try {
-        const { data: supervisors, error: supErr } = await supabase.from('project_supervisors').select('*');
-        if (supErr) throw supErr;
-
-        const { data: projects, error: projErr } = await supabase.from('projects').select('*');
-        if (projErr) throw projErr;
-
-        const mappedSupervisors = (supervisors || []).map(s => {
-            const matchProj = (projects || []).find(p => p.id === s.project_id);
-            return {
-                ...s,
-                project_name: matchProj ? (matchProj.project_name || matchProj.name) : 'غير محدد'
-            };
-        });
-
-        // تم التصحيح هنا لإرسال المصفوفة المحولة مباشرة دون تضارب تسميات
-        res.json(mappedSupervisors);
-    } catch (err) {
-        console.error("❌ خطأ جلب المشرفين بالسيرفر:", err.message);
-        res.status(500).json([]); // إرجاع مصفوفة فارغة في حال حدوث خطأ لمنع انهيار الواجهة
-    }
-});
-
-app.post('/api/project-supervisors', async (req, res) => {
-    const { name, phone_number, project_id, username, password } = req.body;
-    console.log("📥 بيانات المشرف المستلمة:", { name, phone_number, project_id, username });
-    
-    let createdUserId = null;
-    
-    try {
-        // 1. إنشاء الحساب الأساسي في جدول المستخدمين أولاً (هنا يُخزن الـ username والـ password والـ role)
-        const { data: userRow, error: userErr } = await supabase
-            .from('users')
-            .insert([{ username, password, role: 'supervisor', name }])
-            .select()
-            .single();
-
-        if (userErr) {
-            console.error("❌ خطأ Supabase أثناء إنشاء الحساب في جدول users:", userErr);
-            return res.status(400).json({ error: `خطأ في جدول المستخدمين: ${userErr.message}` });
-        }
-
-        createdUserId = userRow.id; // الإمساك بالـ ID المولد لربطه بالمشرف
-
-        // 2. بناء كائن المشرف النقي والمطابق لأعمدة جدول project_supervisors لديك تماماً
-        // تم إزالة حقل username وحقل project_name نهائياً لمنع أي تضارب كاش
-        const supervisorRow = { 
-            user_id: createdUserId, 
-            name: name, 
-            phone_number: phone_number, 
-            project_id: Number(project_id)
-        };
-
-        const { error: supErr } = await supabase
-            .from('project_supervisors')
-            .insert([supervisorRow]);
-
-        if (supErr) {
-            console.error("❌ خطأ Supabase أثناء تدوين المشرف في جدول project_supervisors:", supErr);
-            
-            // إجراء حمائي: إذا فشل تدوين المشرف، نحذف الحساب من جدول users فوراً حتى لا يعلق الاسم
-            await supabase.from('users').delete().eq('id', createdUserId);
-            
-            return res.status(500).json({ error: supErr.message });
-        }
-
-        console.log("✅ نجاح تام: تم إنشاء الحساب وربطه كمشرف في الجدولين بنجاح!");
-        res.json({ success: true });
-
-    } catch (err) {
-        console.error("💥 التحطم النهائي للمسار بسبب:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-//////// STAGES
-// 1. جلب مراحل المشروع مع دمج الأسماء ديناميكياً للعرض في الشاشة
-app.get('/api/project-stages', async (req, res) => {
-    try {
-        // جلب المراحل من جدولها النقي
-        const { data: stages, error: stageErr } = await supabase
-            .from('project_stages')
-            .select('*')
-            .order('id', { ascending: false });
-            
-        if (stageErr) throw stageErr;
-
-        // جلب المشاريع لربط المعرفات بالأسماء الحقيقية
-        const { data: projects } = await supabase.from('projects').select('*');
-
-        // دمج البيانات برمجياً قبل إرسالها للواجهة لتجنب الـ null
-        const mappedStages = (stages || []).map(s => {
-            const matchProj = (projects || []).find(p => p.id === s.project_id);
-            return {
-                id: s.id,
-                stage_name: s.stage_name || s.name, // دعم التسميتين الاحتياطيتين
-                project_name: matchProj ? (matchProj.project_name || matchProj.name) : 'غير محدد',
-                supervisor_name: s.supervisor_name || 'مشرف المشروع',
-                details: s.details || '',
-                start_date: s.start_date || '',
-                end_date: s.end_date || '',
-                is_completed: s.is_completed === true
-            };
-        });
-
-        res.json(mappedStages);
-    } catch (err) {
-        console.error("❌ خطأ جلب مراحل المشروع:", err.message);
-        res.status(500).json([]);
-    }
-});
-
-// 2. حفظ وتدوين مرحلة تنفيذية جديدة بالاعتماد على الـ project_id الرقمي فقط
-app.post('/api/project-stages', async (req, res) => {
-    const item = req.body;
-    console.log("📥 البيانات المستلمة للمرحلة:", item);
-
-    // بناء السطر بناءً على الأعمدة القياسية الصافية لقاعدة بياناتك
-    const dbRow = {
-        stage_name: item.stage_name, 
-        project_id: Number(item.project_id), // الاعتماد على الرقم فقط وتجنب الاسم النصي المسبب للمشاكل
-        details: item.details,
-        start_date: item.start_date || null,
-        end_date: item.end_date || null,
-        is_completed: item.is_completed === true
-    };
-
-    if (item.id) dbRow.id = Number(item.id);
-
-    try {
-        const { data, error } = await supabase
-            .from('project_stages')
-            .insert([dbRow])
-            .select();
-            
-        if (error) {
-            console.error("❌ خطأ Supabase في جدول project_stages:", error);
-            return res.status(500).json({ error: error.message });
-        }
-
-        console.log("✅ تم حفظ المرحلة بنجاح سحابياً!");
-        res.json({ success: true, data });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// مسار افتراضي لتصفح ملف الـ HTML
+// 6. توجيه أي طلب غير معروف للصفحة الرئيسية
+// بديل ذكي يلتقط أي طلب لم تجمعه المسارات السابقة ويرسل الصفحة الرئيسية
 app.use((req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+// 7. تشغيل السيرفر
+app.listen(PORT, () => {
+    console.log(`🚀 خادم نظام أوركيدا يعمل بنظام الوحدات على المنفذ: ${PORT}`);
+});
